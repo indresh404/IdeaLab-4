@@ -5,10 +5,14 @@ import 'package:crisis_clarity/theme/app_theme.dart';
 import 'package:crisis_clarity/components/user/post.dart';
 import 'package:crisis_clarity/components/user/ai_chat_screen.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crisis_clarity/features/alerts/providers/alert_provider.dart';
+import 'package:crisis_clarity/features/alerts/domain/alert_model.dart';
+
 // ─────────────────────────────────────────────────────────────────────────────
 // HomeScreen — filters + posts. Header/analytics live in UserPage.
 // ─────────────────────────────────────────────────────────────────────────────
-class HomeScreen extends StatefulWidget {
+class HomeScreen extends ConsumerStatefulWidget {
   final Future<void> Function() onRefresh;
   final bool isRefreshing;
   final Widget? analyticsCard;
@@ -21,10 +25,10 @@ class HomeScreen extends StatefulWidget {
   });
 
   @override
-  State<HomeScreen> createState() => _HomeScreenState();
+  ConsumerState<HomeScreen> createState() => _HomeScreenState();
 }
 
-class _HomeScreenState extends State<HomeScreen>
+class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin {
   int _selectedLocation = 0;
   int _selectedSeverity = 0;
@@ -56,10 +60,32 @@ class _HomeScreenState extends State<HomeScreen>
   @override
   void dispose() { _staggerCtrl.dispose(); super.dispose(); }
 
-  List<Post> get _filtered {
-    if (_selectedSeverity == 0) return _posts;
+  List<Post> _mapAlertsToPosts(List<AlertModel> alerts) {
+    return alerts.map((a) {
+      final severityStr = a.severity.toLowerCase();
+      final severity = severityStr == 'critical' ? SeverityLevel.red : 
+                       severityStr == 'high' ? SeverityLevel.orange : 
+                       severityStr == 'medium' ? SeverityLevel.yellow : SeverityLevel.green;
+      
+      return Post(
+        id: a.id,
+        username: 'Emergency Alert',
+        userAvatar: '', 
+        userRole: 'Official',
+        location: a.affectedZones.join(', '),
+        timeAgo: 'Just now', 
+        severity: severity,
+        title: a.titleEn,
+        content: a.descriptionEn,
+        isPinned: severityStr == 'critical',
+      );
+    }).toList();
+  }
+
+  List<Post> _getFiltered(List<Post> posts) {
+    if (_selectedSeverity == 0) return posts;
     final lvl = _severityFilters[_selectedSeverity].level;
-    return _posts.where((p) => p.severity == lvl).toList();
+    return posts.where((p) => p.severity == lvl).toList();
   }
 
   // ── Open Ask AI mini bottom-sheet, then slide up to full chat ─────────────
@@ -97,36 +123,47 @@ class _HomeScreenState extends State<HomeScreen>
 
   @override
   Widget build(BuildContext context) {
-    final posts = _filtered;
-    return RefreshIndicator(
-      onRefresh: widget.onRefresh,
-      color: AppTheme.primaryRed,
-      backgroundColor: Colors.white,
-      strokeWidth: 2.5,
-      displacement: 60,
-      child: CustomScrollView(
-        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-        slivers: [
-          if (widget.analyticsCard != null)
-            SliverToBoxAdapter(child: widget.analyticsCard!),
-          SliverToBoxAdapter(child: _buildLiveBanner()),
-          SliverToBoxAdapter(child: _buildFilterCard()),
-          SliverToBoxAdapter(child: _buildSectionHeader()),
-          SliverList(
-            delegate: SliverChildBuilderDelegate(
-                  (_, i) => _PostCard(
-                key: ValueKey(posts[i].id),
-                post: posts[i],
-                index: i,
-                staggerCtrl: _staggerCtrl,
-                onAIChat: () => _showAIChat(posts[i]),
+    final alertsAsync = ref.watch(activeAlertsProvider);
+    
+    return alertsAsync.when(
+      data: (alerts) {
+        final allPosts = _mapAlertsToPosts(alerts);
+        // Combine with default hardcoded posts if needed, or just real alerts
+        final posts = _getFiltered(allPosts.isEmpty ? _posts : allPosts);
+        
+        return RefreshIndicator(
+          onRefresh: widget.onRefresh,
+          color: AppTheme.primaryRed,
+          backgroundColor: Colors.white,
+          strokeWidth: 2.5,
+          displacement: 60,
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+            slivers: [
+              if (widget.analyticsCard != null)
+                SliverToBoxAdapter(child: widget.analyticsCard!),
+              SliverToBoxAdapter(child: _buildLiveBanner()),
+              SliverToBoxAdapter(child: _buildFilterCard()),
+              SliverToBoxAdapter(child: _buildSectionHeader()),
+              SliverList(
+                delegate: SliverChildBuilderDelegate(
+                      (_, i) => _PostCard(
+                    key: ValueKey(posts[i].id),
+                    post: posts[i],
+                    index: i,
+                    staggerCtrl: _staggerCtrl,
+                    onAIChat: () => _showAIChat(posts[i]),
+                  ),
+                  childCount: posts.length,
+                ),
               ),
-              childCount: posts.length,
-            ),
+              const SliverPadding(padding: EdgeInsets.only(bottom: 140)),
+            ],
           ),
-          const SliverPadding(padding: EdgeInsets.only(bottom: 140)),
-        ],
-      ),
+        );
+      },
+      loading: () => const Center(child: CircularProgressIndicator()),
+      error: (e, __) => Center(child: Text('Error: $e')),
     );
   }
 

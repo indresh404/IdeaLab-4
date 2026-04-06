@@ -1,7 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
-import 'package:font_awesome_flutter/font_awesome_flutter.dart'; // Add this import
+import 'package:font_awesome_flutter/font_awesome_flutter.dart'; 
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
 import 'login_page.dart';
 
@@ -184,19 +185,19 @@ class _IntroPageState extends State<IntroPage> {
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(10),
                             child: Image.asset(
-                              'assets/icons/CrisisClarity Logo.png',
+                              'assets/icons/Logo.png',
                               fit: BoxFit.cover,
                             ),
                           ),
                         ),
                         const SizedBox(width: 10),
-                        const Text(
+                        Text(
                           'CRISIS\nCLARITY',
-                          style: TextStyle(
+                          style: GoogleFonts.outfit(
                             color: Colors.white,
-                            fontSize: 12,
+                            fontSize: 14,
                             fontWeight: FontWeight.w900,
-                            letterSpacing: 1.2,
+                            letterSpacing: 1.5,
                             height: 1.1,
                           ),
                         ),
@@ -433,11 +434,11 @@ class _SlideViewState extends State<_SlideView>
                 const SizedBox(width: 6),
                 Text(
                   widget.slide.tag,
-                  style: const TextStyle(
+                  style: GoogleFonts.outfit(
                     color: Colors.white,
                     fontSize: 11,
                     fontWeight: FontWeight.w800,
-                    letterSpacing: 1.2,
+                    letterSpacing: 1.5,
                   ),
                 ),
               ],
@@ -456,10 +457,10 @@ class _SlideViewState extends State<_SlideView>
           ),
           child: Text(
             widget.slide.headline,
-            style: const TextStyle(
+            style: GoogleFonts.outfit(
               color: Colors.white,
-              fontSize: 38,
-              fontWeight: FontWeight.w900,
+              fontSize: 40,
+              fontWeight: FontWeight.bold,
               height: 1.1,
               letterSpacing: -0.5,
             ),
@@ -477,9 +478,9 @@ class _SlideViewState extends State<_SlideView>
           ),
           child: Text(
             widget.slide.body,
-            style: TextStyle(
-              color: Colors.white.withOpacity(0.85),
-              fontSize: 15,
+            style: GoogleFonts.outfit(
+              color: Colors.white.withOpacity(0.9),
+              fontSize: 16,
               height: 1.6,
               fontWeight: FontWeight.w400,
             ),
@@ -736,15 +737,15 @@ class _ContinueButtonState extends State<_ContinueButton>
             child: Row(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Text(
-                  'GET STARTED',
-                  style: TextStyle(
-                    color: AppTheme.primaryRed,
-                    fontSize: 16,
-                    fontWeight: FontWeight.w900,
-                    letterSpacing: 1.8,
+                  Text(
+                    'GET STARTED',
+                    style: GoogleFonts.outfit(
+                      color: AppTheme.primaryRed,
+                      fontSize: 14,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.0,
+                    ),
                   ),
-                ),
                 const SizedBox(width: 10),
                 Container(
                   padding: const EdgeInsets.all(6),

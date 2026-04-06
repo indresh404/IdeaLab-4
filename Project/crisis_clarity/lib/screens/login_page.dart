@@ -1,30 +1,28 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
 import 'package:animate_do/animate_do.dart';
+import 'package:google_fonts/google_fonts.dart';
 import '../theme/app_theme.dart';
-import 'admin_page.dart';
-import 'user_page.dart';
+import '../features/auth/presentation/signup_stepper.dart';
+import '../features/auth/providers/auth_provider.dart';
 
-class LoginPage extends StatefulWidget {
+class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
 
   @override
-  State<LoginPage> createState() => _LoginPageState();
+  ConsumerState<LoginPage> createState() => _LoginPageState();
 }
 
-class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
+class _LoginPageState extends ConsumerState<LoginPage> with TickerProviderStateMixin {
   late final AnimationController _logoCtrl;
   bool _showLogoAnimation = true;
 
-  final _nameCtrl = TextEditingController();
-  final _ageCtrl = TextEditingController();
   final _phoneCtrl = TextEditingController();
-  final _locationCtrl = TextEditingController();
-  final _passwordCtrl = TextEditingController();
-
-  bool _obscurePassword = true;
-  bool _isLoginMode = true;
-  String _selectedRole = 'user'; // 'user' or 'admin'
+  final _otpCtrl = TextEditingController();
+  String? _verificationId;
+  bool _otpSent = false;
+  bool _isLoading = false;
 
   @override
   void initState() {
@@ -42,75 +40,74 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
   @override
   void dispose() {
     _logoCtrl.dispose();
-    _nameCtrl.dispose();
-    _ageCtrl.dispose();
     _phoneCtrl.dispose();
-    _locationCtrl.dispose();
-    _passwordCtrl.dispose();
+    _otpCtrl.dispose();
     super.dispose();
   }
 
-  void _handleSubmit() {
-    if (_isLoginMode) {
-      // Handle login
-      if (_selectedRole == 'admin') {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const AdminPage()));
-      } else {
-        Navigator.push(context, MaterialPageRoute(builder: (_) => const UserPage()));
-      }
-    } else {
-      // Handle signup
-      if (_nameCtrl.text.isNotEmpty &&
-          _ageCtrl.text.isNotEmpty &&
-          _phoneCtrl.text.isNotEmpty &&
-          _locationCtrl.text.isNotEmpty &&
-          _passwordCtrl.text.isNotEmpty) {
+  Future<void> _sendOtp() async {
+    setState(() => _isLoading = true);
+    try {
+      final repo = ref.read(authRepositoryProvider);
+      await repo.verifyPhone(
+        phoneNumber: '+91${_phoneCtrl.text.trim()}',
+        onCodeSent: (id, token) {
+          setState(() {
+            _verificationId = id;
+            _otpSent = true;
+            _isLoading = false;
+          });
+        },
+        onVerificationFailed: (e) {
+          setState(() => _isLoading = false);
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text(e.message ?? 'Verification failed')),
+          );
+        },
+        onVerificationCompleted: (credential) async {
+          // Auto-signin if possible
+        },
+      );
+    } catch (e) {
+      setState(() => _isLoading = false);
+    }
+  }
 
-        showDialog(
-          context: context,
-          barrierDismissible: false,
-          builder: (_) => Dialog(
-            backgroundColor: Colors.transparent,
-            child: Container(
-              padding: const EdgeInsets.all(24),
-              decoration: BoxDecoration(
-                color: Colors.white,
-                borderRadius: BorderRadius.circular(32),
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Lottie.asset(
-                    'assets/animations/success_signup.json',
-                    height: 150,
-                    repeat: false,
-                    onLoaded: (composition) {
-                      Future.delayed(composition.duration, () {
-                        Navigator.pop(context);
-                        if (_selectedRole == 'admin') {
-                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const AdminPage()));
-                        } else {
-                          Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const UserPage()));
-                        }
-                      });
-                    },
-                  ),
-                  const SizedBox(height: 16),
-                  const Text(
-                    'Account Created!',
-                    style: TextStyle(fontSize: 20, fontWeight: FontWeight.w800),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        );
-      } else {
+  Future<void> _verifyOtp() async {
+    if (_verificationId == null) return;
+    setState(() => _isLoading = true);
+    try {
+      await ref.read(authControllerProvider.notifier).signInWithOtp(
+        _verificationId!,
+        _otpCtrl.text.trim(),
+      );
+      
+      // Wait for auth state to update
+      final user = await ref.read(authStateProvider.future);
+      if (user != null) {
+        final profile = await ref.read(authRepositoryProvider).getUserProfile(user.uid);
+        if (profile == null) {
+          // No profile, sign out and show error + redirect to signup
+          await ref.read(authControllerProvider.notifier).signOut();
+          
+          if (mounted) {
+            setState(() => _isLoading = false);
+            // Use Future.microtask to show snackbar outside of the build/nav cycle
+            Future.microtask(() {
+              if (mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  const SnackBar(content: Text('Account not found. Please sign up first.')),
+                );
+              }
+            });
+          }
+        }
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoading = false);
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Please fill all fields'),
-            backgroundColor: AppTheme.primaryRed,
-          ),
+          const SnackBar(content: Text('Invalid OTP')),
         );
       }
     }
@@ -123,33 +120,17 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
       body: SafeArea(
         child: Stack(
           children: [
-            // Background design
+            // Background circles
             Positioned(
               top: -50,
               right: -50,
               child: Container(
                 width: 200,
                 height: 200,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ),
-            Positioned(
-              bottom: -80,
-              left: -40,
-              child: Container(
-                width: 250,
-                height: 250,
-                decoration: BoxDecoration(
-                  color: Colors.white.withOpacity(0.1),
-                  shape: BoxShape.circle,
-                ),
+                decoration: BoxDecoration(color: Colors.white.withOpacity(0.1), shape: BoxShape.circle),
               ),
             ),
 
-            // Logo Animation (only plays at start)
             if (_showLogoAnimation)
               Center(
                 child: Column(
@@ -160,25 +141,14 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                       child: ZoomIn(
                         duration: const Duration(milliseconds: 1500),
                         child: Container(
-                          height: 180,
-                          width: 180,
+                          height: 180, width: 180,
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(40),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.2),
-                                blurRadius: 30,
-                                offset: const Offset(0, 10),
-                              ),
-                            ],
                           ),
                           child: ClipRRect(
                             borderRadius: BorderRadius.circular(40),
-                            child: Image.asset(
-                              'assets/icons/CrisisClarity Logo.png',
-                              fit: BoxFit.cover,
-                            ),
+                            child: Image.asset('assets/icons/Logo.png', fit: BoxFit.cover),
                           ),
                         ),
                       ),
@@ -186,12 +156,11 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                     const SizedBox(height: 24),
                     FadeInUp(
                       duration: const Duration(milliseconds: 1000),
-                      delay: const Duration(milliseconds: 500),
-                      child: const Text(
+                      child: Text(
                         'CRISIS CLARITY',
-                        style: TextStyle(
+                        style: GoogleFonts.outfit( // Updated font
                           fontSize: 32,
-                          fontWeight: FontWeight.w900,
+                          fontWeight: FontWeight.bold,
                           letterSpacing: 2,
                           color: Colors.white,
                         ),
@@ -201,7 +170,6 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                 ),
               ),
 
-            // Main Content (appears after animation)
             if (!_showLogoAnimation)
               SingleChildScrollView(
                 physics: const BouncingScrollPhysics(),
@@ -209,314 +177,99 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
                   padding: const EdgeInsets.all(20.0),
                   child: Column(
                     children: [
-                      const SizedBox(height: 20),
-
-                      // Small Logo and App Name Row
+                      const SizedBox(height: 30),
+                      // Small Logo
                       Row(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          FadeInLeft(
-                            duration: const Duration(milliseconds: 800),
-                            child: Container(
-                              height: 50,
-                              width: 50,
-                              decoration: BoxDecoration(
-                                color: Colors.white,
-                                borderRadius: BorderRadius.circular(12),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.1),
-                                    blurRadius: 10,
-                                    offset: const Offset(0, 4),
-                                  ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(12),
-                                child: Image.asset(
-                                  'assets/icons/CrisisClarity Logo.png',
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
+                          Container(
+                            height: 50, width: 50,
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(12),
                             ),
+                            child: Image.asset('assets/icons/Logo.png'),
                           ),
                           const SizedBox(width: 12),
-                          FadeInRight(
-                            duration: const Duration(milliseconds: 800),
-                            child: const Text(
-                              'CRISIS\nCLARITY',
-                              style: TextStyle(
-                                fontSize: 20,
-                                fontWeight: FontWeight.w900,
-                                letterSpacing: 1,
-                                color: Colors.white,
-                                height: 1.1,
-                              ),
-                            ),
+                          const Text(
+                            'CRISIS\nCLARITY',
+                            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: Colors.white, height: 1.1),
                           ),
                         ],
                       ),
-
-                      const SizedBox(height: 30),
-
-                      // Login/Signup Toggle
-                      FadeInDown(
-                        delay: const Duration(milliseconds: 200),
-                        child: Container(
-                          padding: const EdgeInsets.all(6),
-                          decoration: BoxDecoration(
-                            color: Colors.white.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(20),
-                            border: Border.all(
-                              color: Colors.white.withOpacity(0.3),
-                              width: 1,
-                            ),
-                          ),
-                          child: Row(
-                            children: [
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => setState(() => _isLoginMode = true),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    decoration: BoxDecoration(
-                                      color: _isLoginMode ? Colors.white : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        'Login',
-                                        style: TextStyle(
-                                          color: _isLoginMode ? AppTheme.primaryRed : Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                              Expanded(
-                                child: GestureDetector(
-                                  onTap: () => setState(() => _isLoginMode = false),
-                                  child: Container(
-                                    padding: const EdgeInsets.symmetric(vertical: 14),
-                                    decoration: BoxDecoration(
-                                      color: !_isLoginMode ? Colors.white : Colors.transparent,
-                                      borderRadius: BorderRadius.circular(14),
-                                    ),
-                                    child: Center(
-                                      child: Text(
-                                        'Sign Up',
-                                        style: TextStyle(
-                                          color: !_isLoginMode ? AppTheme.primaryRed : Colors.white,
-                                          fontWeight: FontWeight.w800,
-                                          fontSize: 16,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-
-                      const SizedBox(height: 25),
-
-                      // Form Fields
+                      const SizedBox(height: 60),
+                      
+                      // Card
                       FadeInUp(
-                        delay: const Duration(milliseconds: 300),
                         child: Container(
                           decoration: BoxDecoration(
                             color: Colors.white,
                             borderRadius: BorderRadius.circular(32),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withOpacity(0.15),
-                                blurRadius: 30,
-                                offset: const Offset(0, 15),
-                              ),
-                            ],
+                            boxShadow: [BoxShadow(color: Colors.black.withOpacity(0.15), blurRadius: 30)],
                           ),
                           padding: const EdgeInsets.all(24),
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
                               Text(
-                                _isLoginMode ? 'Welcome Back' : 'Create Account',
-                                style: TextStyle(
+                                _otpSent ? 'Enter OTP' : 'Welcome to CrisisClarity',
+                                style: GoogleFonts.outfit(
                                   fontSize: 24,
-                                  fontWeight: FontWeight.w800,
+                                  fontWeight: FontWeight.bold,
                                   color: AppTheme.primaryRed,
                                 ),
                               ),
-
-                              const SizedBox(height: 24),
-
-                              // Signup fields
-                              if (!_isLoginMode) ...[
-                                _buildField(
-                                  Icons.person_outline_rounded,
-                                  'Full Name',
-                                  _nameCtrl,
-                                ),
-                                const SizedBox(height: 16),
-
-                                _buildField(
-                                  Icons.cake_outlined,
-                                  'Age',
-                                  _ageCtrl,
-                                  isNumber: true,
-                                ),
-                                const SizedBox(height: 16),
-
-                                _buildField(
-                                  Icons.location_on_outlined,
-                                  'Location',
-                                  _locationCtrl,
-                                ),
-                                const SizedBox(height: 16),
-                              ],
-
-                              // Common fields
-                              _buildField(
-                                Icons.phone_android_rounded,
-                                'Mobile Number',
-                                _phoneCtrl,
-                                isNumber: true,
+                              const SizedBox(height: 12),
+                              Text(
+                                _otpSent 
+                                  ? 'Check your messages for the verification code' 
+                                  : 'Sign in with your phone number to receive disaster alerts for your area.',
+                                style: TextStyle(color: Colors.black54, fontSize: 14),
                               ),
-                              const SizedBox(height: 16),
-
-                              _buildField(
-                                Icons.lock_outline_rounded,
-                                'Password',
-                                _passwordCtrl,
-                                isPassword: true,
-                              ),
-
-                              // Forgot password
-                              if (_isLoginMode)
-                                Align(
-                                  alignment: Alignment.centerRight,
-                                  child: TextButton(
-                                    onPressed: () {},
-                                    style: TextButton.styleFrom(
-                                      foregroundColor: AppTheme.primaryRed,
-                                    ),
-                                    child: const Text(
-                                      'Forgot Password?',
-                                      style: TextStyle(
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                    ),
+                              const SizedBox(height: 30),
+                              
+                              if (!_otpSent)
+                                _buildField(Icons.phone_android_rounded, 'Mobile Number', _phoneCtrl)
+                              else
+                                _buildField(Icons.lock_clock_rounded, 'OTP Code', _otpCtrl, isOtp: true),
+                              
+                              const SizedBox(height: 30),
+                              
+                              if (_isLoading)
+                                const Center(child: CircularProgressIndicator())
+                              else
+                                SizedBox(
+                                  width: double.infinity,
+                                  height: 56,
+                                  child: ElevatedButton(
+                                    onPressed: _otpSent ? _verifyOtp : _sendOtp,
+                                    child: Text(_otpSent ? 'VERIFY OTP' : 'SIGN IN'),
                                   ),
                                 ),
-
-                              const SizedBox(height: 16),
-
-                              // Role Selection (only for signup)
-                              if (!_isLoginMode) ...[
-                                Text(
-                                  'Select Role',
-                                  style: TextStyle(
-                                    fontSize: 14,
-                                    fontWeight: FontWeight.w600,
-                                    color: Colors.grey[700],
-                                  ),
-                                ),
-                                const SizedBox(height: 8),
-
-                                Row(
-                                  children: [
-                                    Expanded(
-                                      child: _buildRoleCard(
-                                        'User',
-                                        Icons.person_rounded,
-                                        'Receive alerts',
-                                        _selectedRole == 'user',
-                                            () => setState(() => _selectedRole = 'user'),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: _buildRoleCard(
-                                        'Admin',
-                                        Icons.admin_panel_settings_rounded,
-                                        'Manage alerts',
-                                        _selectedRole == 'admin',
-                                            () => setState(() => _selectedRole = 'admin'),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                                const SizedBox(height: 24),
-                              ],
-
-                              // Submit Button
-                              SizedBox(
-                                width: double.infinity,
-                                height: 56,
-                                child: ElevatedButton(
-                                  onPressed: _handleSubmit,
-                                  style: ElevatedButton.styleFrom(
-                                    backgroundColor: AppTheme.primaryRed,
-                                    foregroundColor: Colors.white,
-                                    shape: RoundedRectangleBorder(
-                                      borderRadius: BorderRadius.circular(18),
-                                    ),
-                                    elevation: 5,
-                                    shadowColor: AppTheme.primaryRed.withOpacity(0.5),
-                                  ),
+                              
+                              const SizedBox(height: 20),
+                              Center(
+                                child: TextButton(
+                                  onPressed: () {
+                                    Navigator.push(context, MaterialPageRoute(builder: (_) => const SignupStepper()));
+                                  },
                                   child: Text(
-                                    _isLoginMode ? 'SIGN IN' : 'CREATE ACCOUNT',
-                                    style: const TextStyle(
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w800,
-                                      letterSpacing: 1,
-                                    ),
+                                    "New here? Create Account",
+                                    style: TextStyle(color: AppTheme.primaryRed, fontWeight: FontWeight.bold),
                                   ),
                                 ),
                               ),
-
-                              // Terms
-                              if (!_isLoginMode)
-                                Padding(
-                                  padding: const EdgeInsets.only(top: 16),
-                                  child: Center(
-                                    child: Text(
-                                      'By signing up, you agree to our Terms & Conditions',
-                                      style: TextStyle(
-                                        fontSize: 12,
-                                        color: Colors.grey[500],
-                                      ),
-                                      textAlign: TextAlign.center,
-                                    ),
-                                  ),
-                                ),
                             ],
                           ),
                         ),
                       ),
-
-                      const SizedBox(height: 5),
-
-                      // Lottie Animation at the bottom
-                      FadeIn(
-                        delay: const Duration(milliseconds: 500),
-                        child: Container(
-                          height: 450,
-                          child: Lottie.asset(
-                            _isLoginMode
-                                ? 'assets/animations/login.json'
-                                : 'assets/animations/signup.json',
-                            fit: BoxFit.contain,
-                          ),
-                        ),
+                      
+                      const SizedBox(height: 40),
+                      // Lottie
+                      SizedBox(
+                        height: 300,
+                        child: Lottie.asset('assets/animations/login.json'),
                       ),
-
-                      const SizedBox(height: 20),
                     ],
                   ),
                 ),
@@ -527,82 +280,30 @@ class _LoginPageState extends State<LoginPage> with TickerProviderStateMixin {
     );
   }
 
-  Widget _buildField(IconData icon, String hint, TextEditingController ctrl,
-      {bool isPassword = false, bool isNumber = false}) {
+  Widget _buildField(IconData icon, String hint, TextEditingController ctrl, {bool isOtp = false}) {
     return Container(
       decoration: BoxDecoration(
         color: const Color(0xFFF5F6FA),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: Colors.grey[200]!,
-          width: 1,
-        ),
+        border: Border.all(color: Colors.grey[200]!),
       ),
       child: TextField(
         controller: ctrl,
-        keyboardType: isNumber ? TextInputType.number : TextInputType.text,
-        obscureText: isPassword ? _obscurePassword : false,
+        keyboardType: TextInputType.number,
+        maxLength: isOtp ? 6 : 10, // Max 10 digits for phone
+        style: GoogleFonts.outfit(fontWeight: FontWeight.w600),
         decoration: InputDecoration(
+          counterText: '',
           prefixIcon: Icon(icon, color: AppTheme.primaryRed.withOpacity(0.6)),
-          suffixIcon: isPassword
-              ? IconButton(
-            icon: Icon(
-              _obscurePassword
-                  ? Icons.visibility_outlined
-                  : Icons.visibility_off_outlined,
-              color: Colors.grey[400],
-              size: 20,
-            ),
-            onPressed: () => setState(() => _obscurePassword = !_obscurePassword),
-          )
-              : null,
+          prefixText: isOtp ? null : '+91 ', // Fixed +91 prefix
+          prefixStyle: GoogleFonts.outfit(
+            color: Colors.black87,
+            fontWeight: FontWeight.bold,
+            fontSize: 16,
+          ),
           hintText: hint,
-          hintStyle: TextStyle(color: Colors.grey[500]),
           border: InputBorder.none,
           contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 18),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildRoleCard(String title, IconData icon, String subtitle, bool isSelected, VoidCallback onTap) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 200),
-        padding: const EdgeInsets.all(12),
-        decoration: BoxDecoration(
-          color: isSelected ? AppTheme.primaryRed.withOpacity(0.1) : Colors.grey[50],
-          border: Border.all(
-            color: isSelected ? AppTheme.primaryRed : Colors.grey[300]!,
-            width: isSelected ? 2 : 1,
-          ),
-          borderRadius: BorderRadius.circular(16),
-        ),
-        child: Column(
-          children: [
-            Icon(
-              icon,
-              color: isSelected ? AppTheme.primaryRed : Colors.grey[600],
-              size: 28,
-            ),
-            const SizedBox(height: 4),
-            Text(
-              title,
-              style: TextStyle(
-                fontWeight: FontWeight.w700,
-                color: isSelected ? AppTheme.primaryRed : Colors.grey[700],
-              ),
-            ),
-            Text(
-              subtitle,
-              style: TextStyle(
-                fontSize: 10,
-                color: isSelected ? AppTheme.primaryRed.withOpacity(0.7) : Colors.grey[500],
-              ),
-              textAlign: TextAlign.center,
-            ),
-          ],
         ),
       ),
     );

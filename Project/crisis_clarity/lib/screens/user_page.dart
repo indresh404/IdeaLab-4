@@ -2,7 +2,9 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:lottie/lottie.dart';
+import 'package:crisis_clarity/features/auth/providers/auth_provider.dart';
 import 'package:crisis_clarity/theme/app_theme.dart';
 import 'package:crisis_clarity/components/user/home_screen.dart';
 import 'package:crisis_clarity/components/user/alert_section.dart';
@@ -10,13 +12,13 @@ import 'package:crisis_clarity/components/user/update_section.dart';
 import 'package:crisis_clarity/components/user/profile_section.dart';
 import 'package:crisis_clarity/components/user/ai_chat_screen.dart';
 
-class UserPage extends StatefulWidget {
+class UserPage extends ConsumerStatefulWidget {
   const UserPage({super.key});
   @override
-  State<UserPage> createState() => _UserPageState();
+  ConsumerState<UserPage> createState() => _UserPageState();
 }
 
-class _UserPageState extends State<UserPage> with TickerProviderStateMixin {
+class _UserPageState extends ConsumerState<UserPage> with TickerProviderStateMixin {
   int _selectedIndex = 0;
   int _previousIndex = 0;
 
@@ -177,7 +179,10 @@ class _UserPageState extends State<UserPage> with TickerProviderStateMixin {
         extendBody: true,
         backgroundColor: const Color(0xFFF2F3F7),
         body: Column(children: [
-          _UserHeader(pulseAnim: _pulseAnim),
+          _UserHeader(
+            pulseAnim: _pulseAnim,
+            userName: ref.watch(userProfileProvider).value?.name ?? 'User',
+          ),
           Expanded(
             child: _isInitialLoading ? _buildLoadingBody() : _buildPageBody(),
           ),
@@ -370,7 +375,8 @@ class _UserPageState extends State<UserPage> with TickerProviderStateMixin {
 // ─────────────────────────────────────────────────────────────────────────────
 class _UserHeader extends StatelessWidget {
   final Animation<double> pulseAnim;
-  const _UserHeader({required this.pulseAnim});
+  final String userName;
+  const _UserHeader({required this.pulseAnim, required this.userName});
 
   @override
   Widget build(BuildContext context) {
@@ -402,7 +408,7 @@ class _UserHeader extends StatelessWidget {
             Column(crossAxisAlignment: CrossAxisAlignment.start,
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  const Text('CrisisClarity', style: TextStyle(
+                  Text('Hi, $userName', style: const TextStyle(
                       fontSize: 19, fontWeight: FontWeight.w800,
                       color: Colors.white, letterSpacing: -0.4)),
                   Row(children: [

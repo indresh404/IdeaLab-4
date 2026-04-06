@@ -2,14 +2,17 @@ import 'package:flutter/material.dart';
 import 'package:crisis_clarity/theme/app_theme.dart';
 import 'package:lottie/lottie.dart';
 
-class AlertSection extends StatefulWidget {
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crisis_clarity/features/alerts/providers/alert_provider.dart';
+
+class AlertSection extends ConsumerStatefulWidget {
   const AlertSection({super.key});
 
   @override
-  State<AlertSection> createState() => _AlertSectionState();
+  ConsumerState<AlertSection> createState() => _AlertSectionState();
 }
 
-class _AlertSectionState extends State<AlertSection> {
+class _AlertSectionState extends ConsumerState<AlertSection> {
   bool _isLoading = true;
 
   @override
@@ -27,13 +30,32 @@ class _AlertSectionState extends State<AlertSection> {
 
   @override
   Widget build(BuildContext context) {
+    final alertsAsync = ref.watch(activeAlertsProvider);
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: Center(
-        child: _isLoading
-            ? _buildLoadingState()
-            : _buildEmptyState(),
+      body: alertsAsync.when(
+        data: (alerts) => alerts.isEmpty ? _buildEmptyState() : _buildAlertList(alerts),
+        loading: () => _buildLoadingState(),
+        error: (e, __) => Center(child: Text('Error: $e')),
       ),
+    );
+  }
+
+  Widget _buildAlertList(List<dynamic> alerts) {
+    return ListView.builder(
+      padding: const EdgeInsets.all(16),
+      itemCount: alerts.length,
+      itemBuilder: (context, index) {
+        final alert = alerts[index];
+        return Card(
+          child: ListTile(
+            title: Text(alert.titleEn),
+            subtitle: Text(alert.descriptionEn),
+            leading: const Icon(Icons.warning, color: Colors.red),
+          ),
+        );
+      },
     );
   }
 
