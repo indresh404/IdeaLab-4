@@ -123,4 +123,3 @@ CrisisClarity introduces a **Comprehension Feedback Loop**, where:
 
 ---
 
-## 🏗️ System Architecture (High-Level)
