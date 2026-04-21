@@ -45,6 +45,12 @@ class AlertCard extends ConsumerWidget {
                 _buildTypeIcon(alert.disasterType, severityColor),
                 const SizedBox(width: 12),
                 _buildSeverityBadge(alert.severity, severityColor),
+                const SizedBox(width: 8),
+                _buildTrustBadge(alert.trustStatus),
+                if (alert.usingRealData) ...[
+                  const SizedBox(width: 8),
+                  _buildLiveBadge(),
+                ],
                 const Spacer(),
                 Text(
                   timeago.format(alert.createdAt),
@@ -78,6 +84,10 @@ class AlertCard extends ConsumerWidget {
                 height: 1.5,
               ),
             ),
+            const SizedBox(height: 12),
+            
+            // Confidence Bar
+            _buildConfidenceBar(alert.trustScore),
             const SizedBox(height: 16),
             
             // Footer: Zone + Read More
@@ -147,6 +157,119 @@ class AlertCard extends ConsumerWidget {
         severity.toUpperCase(),
         style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900, letterSpacing: 1),
       ),
+    );
+  }
+
+  Widget _buildTrustBadge(String status) {
+    Color color;
+    IconData icon;
+    String label;
+
+    switch (status.toLowerCase()) {
+      case 'verified':
+        color = Colors.blue.shade700;
+        icon = Icons.verified_rounded;
+        label = 'VERIFIED';
+        break;
+      case 'fake':
+        color = AppTheme.errorRed;
+        icon = Icons.gpp_bad_rounded;
+        label = 'RUMOR';
+        break;
+      default:
+        color = Colors.grey.shade600;
+        icon = Icons.help_outline_rounded;
+        label = 'PENDING';
+    }
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: color.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 10, color: color),
+          const SizedBox(width: 4),
+          Text(
+            label,
+            style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 0.5),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildLiveBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.red.shade700.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.red.shade700.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: Colors.red.shade700,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'LIVE NEWS',
+            style: TextStyle(
+              color: Colors.red.shade700,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConfidenceBar(int score) {
+    Color color = score >= 80 ? Colors.green : score >= 40 ? Colors.orange : Colors.red;
+    
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text('AI Confidence', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: Colors.black38)),
+            Text('$score%', style: TextStyle(fontSize: 10, fontWeight: FontWeight.w900, color: color)),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Container(
+          height: 4,
+          width: double.infinity,
+          decoration: BoxDecoration(
+            color: Colors.black.withOpacity(0.05),
+            borderRadius: BorderRadius.circular(2),
+          ),
+          child: FractionallySizedBox(
+            alignment: Alignment.centerLeft,
+            widthFactor: score / 100,
+            child: Container(
+              decoration: BoxDecoration(
+                color: color,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+          ),
+        ),
+      ],
     );
   }
 }

@@ -24,9 +24,13 @@ class Post {
   final SeverityLevel severity;
   final String title;
   final String content;
+  final String disasterType;
   final int feedbackCount;
   final bool hasNotification;
   final bool isPinned;
+  final int trustScore; // 0-100
+  final String trustStatus; // verified, partial, fake
+  final String? link;
 
   Post({
     required this.id,
@@ -38,9 +42,13 @@ class Post {
     required this.severity,
     required this.title,
     required this.content,
+    this.disasterType = 'general',
     this.feedbackCount = 0,
     this.hasNotification = false,
     this.isPinned = false,
+    this.trustScore = 50,
+    this.trustStatus = 'partial',
+    this.link,
   });
 }
 

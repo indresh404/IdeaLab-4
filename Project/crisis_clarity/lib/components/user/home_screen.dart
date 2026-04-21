@@ -7,7 +7,12 @@ import 'package:crisis_clarity/components/user/ai_chat_screen.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crisis_clarity/features/alerts/providers/alert_provider.dart';
+import 'package:crisis_clarity/features/alerts/presentation/alert_detail_screen.dart';
+import 'package:crisis_clarity/features/alerts/presentation/post_detail_screen.dart';
 import 'package:crisis_clarity/features/alerts/domain/alert_model.dart';
+import 'package:go_router/go_router.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:crisis_clarity/features/auth/providers/auth_provider.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // HomeScreen — filters + posts. Header/analytics live in UserPage.
@@ -60,28 +65,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   @override
   void dispose() { _staggerCtrl.dispose(); super.dispose(); }
 
-  List<Post> _mapAlertsToPosts(List<AlertModel> alerts) {
-    return alerts.map((a) {
-      final severityStr = a.severity.toLowerCase();
-      final severity = severityStr == 'critical' ? SeverityLevel.red : 
-                       severityStr == 'high' ? SeverityLevel.orange : 
-                       severityStr == 'medium' ? SeverityLevel.yellow : SeverityLevel.green;
-      
-      return Post(
-        id: a.id,
-        username: 'Emergency Alert',
-        userAvatar: '', 
-        userRole: 'Official',
-        location: a.affectedZones.join(', '),
-        timeAgo: 'Just now', 
-        severity: severity,
-        title: a.titleEn,
-        content: a.descriptionEn,
-        isPinned: severityStr == 'critical',
-      );
-    }).toList();
-  }
-
   List<Post> _getFiltered(List<Post> posts) {
     if (_selectedSeverity == 0) return posts;
     final lvl = _severityFilters[_selectedSeverity].level;
@@ -121,54 +104,172 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     );
   }
 
+  List<Post> _mapAlertsToPosts(List<AlertModel> alerts) {
+    return alerts.map((a) {
+      final severity = a.severity == 'critical' ? SeverityLevel.red : 
+                       a.severity == 'high' ? SeverityLevel.orange : 
+                       a.severity == 'medium' ? SeverityLevel.yellow : SeverityLevel.green;
+      
+      return Post(
+        id: a.id,
+        username: a.postedBy.isNotEmpty ? a.postedBy : 'Official Alert',
+        userAvatar: '', 
+        userRole: 'Crisis Engine',
+        location: a.affectedZones.isNotEmpty ? a.affectedZones.join(', ') : 'Mumbai',
+        timeAgo: 'Active now',
+        severity: severity,
+        title: a.titleEn,
+        content: a.descriptionEn,
+        disasterType: a.disasterType,
+        feedbackCount: a.understood,
+        isPinned: true,
+        trustScore: a.trustScore,
+        trustStatus: a.trustStatus,
+      );
+    }).toList();
+  }
+
+  String _stripHtml(String htmlString) {
+    if (htmlString.isEmpty) return "";
+    // Basic regex to strip HTML tags
+    final RegExp exp = RegExp(r"<[^>]*>", multiLine: true, caseSensitive: true);
+    return htmlString.replaceAll(exp, ' ').replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  String _formatRssDate(String dateStr) {
+    try {
+      // Basic extraction of "Day, DD Month YYYY" from "Wed, 15 Apr 2026 09:29:12 +0000"
+      final parts = dateStr.split(' ');
+      if (parts.length >= 4) {
+        return '${parts[1]} ${parts[2]} ${parts[3]}';
+      }
+      return dateStr;
+    } catch (e) {
+      return dateStr;
+    }
+  }
+
+  List<Post> _mapNewsToPosts(List<Map<String, dynamic>> news) {
+    return news.map((n) {
+      try {
+        final severityStr = n['severity']?.toString().toLowerCase() ?? 'low';
+        final severity = severityStr == 'critical' ? SeverityLevel.red : 
+                         severityStr == 'high' ? SeverityLevel.orange : 
+                         severityStr == 'medium' ? SeverityLevel.yellow : SeverityLevel.green;
+        
+        final String rawTitle = n['title']?.toString() ?? 'Disaster Update';
+        final String rawContent = n['description']?.toString() ?? n['content']?.toString() ?? 'No details available.';
+        final String rawDate = n['published']?.toString() ?? 'Recently';
+
+        // Ensure we have a valid ID
+        final String newsId = n['link']?.toString() ?? rawTitle ?? DateTime.now().microsecondsSinceEpoch.toString();
+
+        return Post(
+          id: newsId,
+          username: n['source']?.toString() ?? 'Live News',
+          userAvatar: '', 
+          userRole: 'Verified News',
+          location: n['location']?.toString() ?? 'India',
+          timeAgo: _formatRssDate(rawDate), 
+          severity: severity,
+          title: _stripHtml(rawTitle),
+          content: _stripHtml(rawContent),
+          disasterType: n['disaster_type']?.toString() ?? 'other',
+          isPinned: false,
+          trustScore: n['confidence_score'] ?? 75, 
+          trustStatus: n['trust_status'] ?? 'partial',
+          link: n['link']?.toString() ?? n['url']?.toString(),
+        );
+      } catch (e) {
+        print('Error mapping individual news item: $e');
+        // Return a fallback post instead of crashing the whole list
+        return Post(
+          id: 'error-${DateTime.now().microsecondsSinceEpoch}',
+          username: 'System',
+          userAvatar: '',
+          userRole: 'Error',
+          location: 'Unknown',
+          timeAgo: 'Just now',
+          severity: SeverityLevel.green,
+          title: 'Update failed to load',
+          content: 'An error occurred while processing this news item.',
+        );
+      }
+    }).toList();
+  }
+
   @override
   Widget build(BuildContext context) {
     final alertsAsync = ref.watch(activeAlertsProvider);
+    final newsAsync = ref.watch(liveNewsProvider);
     
-    return alertsAsync.when(
-      data: (alerts) {
-        final allPosts = _mapAlertsToPosts(alerts);
-        // Combine with default hardcoded posts if needed, or just real alerts
-        final posts = _getFiltered(allPosts.isEmpty ? _posts : allPosts);
-        
-        return RefreshIndicator(
-          onRefresh: widget.onRefresh,
-          color: AppTheme.primaryRed,
-          backgroundColor: Colors.white,
-          strokeWidth: 2.5,
-          displacement: 60,
-          child: CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
-            slivers: [
-              if (widget.analyticsCard != null)
-                SliverToBoxAdapter(child: widget.analyticsCard!),
-              SliverToBoxAdapter(child: _buildLiveBanner()),
-              SliverToBoxAdapter(child: _buildFilterCard()),
-              SliverToBoxAdapter(child: _buildSectionHeader()),
-              SliverList(
-                delegate: SliverChildBuilderDelegate(
-                      (_, i) => _PostCard(
-                    key: ValueKey(posts[i].id),
-                    post: posts[i],
-                    index: i,
-                    staggerCtrl: _staggerCtrl,
-                    onAIChat: () => _showAIChat(posts[i]),
-                  ),
-                  childCount: posts.length,
-                ),
+    final List<Post> alertPosts = alertsAsync.maybeWhen(
+      data: (alerts) => _mapAlertsToPosts(alerts),
+      orElse: () => [],
+    );
+
+    final List<Post> newsPosts = newsAsync.maybeWhen(
+      data: (news) => _mapNewsToPosts(news),
+      orElse: () => [],
+    );
+
+    // Combine all: alerts first, then news
+    final allPosts = [...alertPosts, ...newsPosts];
+    
+    // If everything is empty AND alerts are still loading, show main loader
+    if (allPosts.isEmpty && alertsAsync.isLoading) {
+      return const Center(child: CircularProgressIndicator());
+    }
+
+    // If everything is empty (and not loading), use mock posts for demo
+    final posts = _getFiltered(allPosts.isEmpty ? _posts : allPosts);
+
+    return RefreshIndicator(
+      onRefresh: widget.onRefresh,
+      color: AppTheme.primaryRed,
+      backgroundColor: Colors.white,
+      strokeWidth: 2.5,
+      displacement: 60,
+      child: CustomScrollView(
+        physics: const AlwaysScrollableScrollPhysics(parent: BouncingScrollPhysics()),
+        slivers: [
+          if (widget.analyticsCard != null)
+            SliverToBoxAdapter(child: widget.analyticsCard!),
+          SliverToBoxAdapter(child: _buildLiveBanner(allPosts.length)),
+          if (!(ref.watch(userProfileProvider).value?.telegramLinked ?? true))
+            SliverToBoxAdapter(child: _buildTelegramBanner()),
+          SliverToBoxAdapter(child: _buildFilterCard()),
+          SliverToBoxAdapter(child: _buildSectionHeader()),
+          
+          // Show a small loader if news is still fetching but we have alerts
+          if (newsAsync.isLoading && alertPosts.isNotEmpty)
+            const SliverToBoxAdapter(
+              child: Padding(
+                padding: EdgeInsets.all(8.0),
+                child: Center(child: LinearProgressIndicator(minHeight: 2)),
               ),
-              const SliverPadding(padding: EdgeInsets.only(bottom: 140)),
-            ],
+            ),
+
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+                  (_, i) => _PostCard(
+                key: ValueKey(posts[i].id),
+                post: posts[i],
+                index: i,
+                staggerCtrl: _staggerCtrl,
+                onAIChat: () => _showAIChat(posts[i]),
+              ),
+              childCount: posts.length,
+            ),
           ),
-        );
-      },
-      loading: () => const Center(child: CircularProgressIndicator()),
-      error: (e, __) => Center(child: Text('Error: $e')),
+          const SliverPadding(padding: EdgeInsets.only(bottom: 140)),
+        ],
+      ),
     );
   }
 
   // ── Live banner ───────────────────────────────────────────────────────────
-  Widget _buildLiveBanner() {
+  Widget _buildLiveBanner(int count) {
     return GestureDetector(
       onTap: () => HapticFeedback.lightImpact(),
       child: Container(
@@ -185,11 +286,47 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         child: Row(children: [
           _PulseDot(),
           const SizedBox(width: 10),
-          const Expanded(child: Text('3 Active Alerts in your area — tap to view',
-              style: TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600))),
+          Expanded(child: Text('$count Active Updates in your area — tap to view',
+              style: const TextStyle(color: Colors.white, fontSize: 13, fontWeight: FontWeight.w600))),
           const Icon(Icons.arrow_forward_ios, color: Colors.white, size: 13),
         ]),
       ),
+    );
+  }
+
+  // ── Telegram banner ───────────────────────────────────────────────────────
+  Widget _buildTelegramBanner() {
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF26A5E4).withOpacity(0.1),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF26A5E4).withOpacity(0.3)),
+      ),
+      child: Row(children: [
+        const FaIcon(FontAwesomeIcons.telegram, color: Color(0xFF26A5E4), size: 24),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text('Enable Real-time Alerts',
+                  style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14)),
+              Text('Link your Telegram to get notified instantly.',
+                  style: TextStyle(color: Colors.grey[600], fontSize: 12)),
+            ],
+          ),
+        ),
+        TextButton(
+          onPressed: () => context.push('/signup'),
+          style: TextButton.styleFrom(
+            foregroundColor: const Color(0xFF26A5E4),
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+          ),
+          child: const Text('LINK NOW', style: TextStyle(fontWeight: FontWeight.bold)),
+        ),
+      ]),
     );
   }
 
@@ -262,43 +399,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
   }
 
   // ── Posts ─────────────────────────────────────────────────────────────────
-  static final List<Post> _posts = [
-    Post(id: '1', username: 'NDRF Official',
-        userAvatar: 'https://ui-avatars.com/api/?name=NDRF&background=FF0000&color=fff',
-        userRole: 'Admin', location: 'Chembur, Mumbai', timeAgo: '15 mins ago',
-        severity: SeverityLevel.red,
-        title: '🚨 URGENT: Evacuation Required in Low-Lying Areas',
-        content: 'The NDRF has issued an immediate evacuation order for residents in low-lying areas of Chembur, Kurla, and parts of Dharavi. Water levels are expected to reach 4-5 feet within 2 hours. Emergency shelters at Chembur Gymkhana and Kurla Municipal School.',
-        feedbackCount: 234, hasNotification: true, isPinned: true),
-    Post(id: '2', username: 'Mumbai Police',
-        userAvatar: 'https://ui-avatars.com/api/?name=Police&background=0D47A1&color=fff',
-        userRole: 'Verified', location: 'South Mumbai', timeAgo: '32 mins ago',
-        severity: SeverityLevel.orange,
-        title: '⚠️ Traffic Advisory: Multiple Roads Closed',
-        content: 'Marine Drive, Peddar Road, JJ Flyover and Eastern Freeway are closed due to heavy rainfall. BEST has arranged additional buses on Western Express Highway.',
-        feedbackCount: 156, hasNotification: true, isPinned: false),
-    Post(id: '3', username: 'BMC Disaster Management',
-        userAvatar: 'https://ui-avatars.com/api/?name=BMC&background=2E7D32&color=fff',
-        userRole: 'Official', location: 'Andheri East', timeAgo: '1 hr ago',
-        severity: SeverityLevel.yellow,
-        title: '🌧️ Waterlogging Update: Pumps Deployed',
-        content: 'BMC deployed 45 high-capacity pumps across waterlogging-prone areas. Andheri subway water level reducing. Hindmata cleared. Dadar TT still slow — avoid if possible.',
-        feedbackCount: 89, hasNotification: false, isPinned: false),
-    Post(id: '4', username: 'Indian Meteorological Dept',
-        userAvatar: 'https://ui-avatars.com/api/?name=IMD&background=F57F17&color=fff',
-        userRole: 'Government', location: 'Regional Office, Mumbai', timeAgo: '2 hrs ago',
-        severity: SeverityLevel.green,
-        title: '📊 Weather Update: Rainfall to Decrease',
-        content: 'IMD forecasts rainfall intensity will decrease over 6-8 hours. Arabian Sea depression moving away. Orange alert remains for Mumbai, Thane, Palghar. Wind 45-55 km/h.',
-        feedbackCount: 412, hasNotification: false, isPinned: false),
-    Post(id: '5', username: 'Railway Ministry',
-        userAvatar: 'https://ui-avatars.com/api/?name=Rail&background=6A1B9A&color=fff',
-        userRole: 'Official', location: 'Central Railway HQ', timeAgo: '3 hrs ago',
-        severity: SeverityLevel.yellow,
-        title: '🚆 Train Services: Schedule Updates',
-        content: 'Central Line: 20-25 min delay. Harbour line: 15 min. Western Line Churchgate–Virar: 15 min delay. 150 additional BEST buses on major routes.',
-        feedbackCount: 278, hasNotification: true, isPinned: false),
-  ];
+  static final List<Post> _posts = [];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -442,42 +543,53 @@ class _PostCard extends StatelessWidget {
         return Opacity(opacity: t,
             child: Transform.translate(offset: Offset(0, 18 * (1 - t)), child: child));
       },
-      child: Container(
-        margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
-        decoration: BoxDecoration(
-          color: Colors.white,
-          borderRadius: BorderRadius.circular(22),
-          boxShadow: [
-            BoxShadow(color: post.severity.color.withOpacity(0.07), blurRadius: 14, offset: const Offset(0, 4)),
-            BoxShadow(color: Colors.black.withOpacity(0.035), blurRadius: 7, offset: const Offset(0, 2)),
-          ],
-        ),
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(22),
-          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            Container(height: 4, decoration: BoxDecoration(
-              gradient: LinearGradient(colors: [
-                post.severity.color, post.severity.color.withOpacity(0.3)]),
-            )),
-            Padding(
-              padding: const EdgeInsets.all(15),
-              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                _UserRow(post: post),
-                const SizedBox(height: 11),
-                _SevBadge(post: post),
-                const SizedBox(height: 9),
-                Text(post.title, style: const TextStyle(
-                    fontSize: 14.5, fontWeight: FontWeight.w700, height: 1.3, letterSpacing: -0.2)),
-                const SizedBox(height: 7),
-                Text(post.content, maxLines: 3, overflow: TextOverflow.ellipsis,
-                    style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.5)),
-                const SizedBox(height: 13),
-                Divider(color: Colors.grey[100], height: 1),
-                const SizedBox(height: 11),
-                _ActionRow(post: post, onAIChat: onAIChat),
-              ]),
-            ),
-          ]),
+      child: GestureDetector(
+        onTap: () {
+          Navigator.push(context, MaterialPageRoute(builder: (_) => PostDetailScreen(post: post)));
+        },
+        child: Container(
+          margin: const EdgeInsets.fromLTRB(16, 0, 16, 14),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(22),
+            boxShadow: [
+              BoxShadow(color: post.severity.color.withOpacity(0.07), blurRadius: 14, offset: const Offset(0, 4)),
+              BoxShadow(color: Colors.black.withOpacity(0.035), blurRadius: 7, offset: const Offset(0, 2)),
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(22),
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Container(height: 4, decoration: BoxDecoration(
+                gradient: LinearGradient(colors: [
+                  post.severity.color, post.severity.color.withOpacity(0.3)]),
+              )),
+              Padding(
+                padding: const EdgeInsets.all(15),
+                child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                  _UserRow(post: post),
+                  const SizedBox(height: 11),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      _SevBadge(post: post),
+                      _TrustBadge(post: post),
+                    ],
+                  ),
+                  const SizedBox(height: 9),
+                  Text(post.title, style: const TextStyle(
+                      fontSize: 14.5, fontWeight: FontWeight.w700, height: 1.3, letterSpacing: -0.2)),
+                  const SizedBox(height: 7),
+                  Text(post.content, maxLines: 3, overflow: TextOverflow.ellipsis,
+                      style: TextStyle(fontSize: 13, color: Colors.grey[600], height: 1.5)),
+                  const SizedBox(height: 13),
+                  Divider(color: Colors.grey[100], height: 1),
+                  const SizedBox(height: 11),
+                  _ActionRow(post: post, onAIChat: onAIChat),
+                ]),
+              ),
+            ]),
+          ),
         ),
       ),
     );
@@ -553,6 +665,31 @@ class _SevBadge extends StatelessWidget {
           color: post.severity.color, letterSpacing: 0.5)),
     ]),
   );
+}
+
+class _TrustBadge extends StatelessWidget {
+  final Post post;
+  const _TrustBadge({required this.post});
+  @override
+  Widget build(BuildContext context) {
+    final color = post.trustStatus == 'verified' ? Colors.green : 
+                  post.trustStatus == 'fake' ? Colors.red : Colors.orange;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.08),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: color.withOpacity(0.2)),
+      ),
+      child: Row(mainAxisSize: MainAxisSize.min, children: [
+        Icon(Icons.verified_user_outlined, size: 10, color: color),
+        const SizedBox(width: 4),
+        Text('${post.trustScore}% CONFIDENCE', style: TextStyle(
+            fontSize: 8.5, fontWeight: FontWeight.w900,
+            color: color, letterSpacing: 0.3)),
+      ]),
+    );
+  }
 }
 
 class _RoleBadge extends StatelessWidget {

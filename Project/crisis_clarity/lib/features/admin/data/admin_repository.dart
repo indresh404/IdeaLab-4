@@ -1,4 +1,7 @@
+import 'dart:convert';
 import 'package:cloud_firestore/cloud_firestore.dart';
+import 'package:http/http.dart' as http;
+import '../../../core/constants.dart';
 import '../../alerts/domain/alert_model.dart';
 
 class AdminRepository {
@@ -15,6 +18,8 @@ class AdminRepository {
 
   Future<void> postAlert(Map<String, dynamic> alertData) async {
     final docRef = _firestore.collection('alerts').doc();
+    final alertId = docRef.id;
+
     await docRef.set({
       ...alertData,
       'createdAt': FieldValue.serverTimestamp(),
@@ -24,6 +29,18 @@ class AdminRepository {
       'notUnderstood': 0,
       'totalViews': 0,
     });
+
+    // Trigger AI Verification Pipeline via Backend API
+    try {
+      final url = Uri.parse('${AppConstants.baseUrl}${AppConstants.verifyAlert}');
+      await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({'alertId': alertId, 'scenario': null}),
+      );
+    } catch (e) {
+      print('Error triggering AI verification: $e');
+    }
   }
 
   Future<void> postSafetyInstructions(String disasterType, List<Map<String, String>> steps) async {

@@ -1,0 +1,222 @@
+[
+    {
+        "event_id": "EVT-001",
+        "title": "Severe waterlogging at Andheri subway after 3 hours of heavy rain",
+        "summary": "Andheri subway flooded completely. Traffic diverted to Western Express Highway. Local trains running late by 20-30 mins.",
+        "full_description": "Continuous heavy rainfall for 3 hours caused severe waterlogging at Andheri subway, one of Mumbai's busiest traffic corridors. Water level reached 4 feet, making the underpass completely impassable. BMC deployed pumps but water removal is slow due to high tide at Mahim Creek. Commuters reported 90-minute delays. No injuries reported but 2 buses got stuck. Local train services between Andheri and Vile Parle are running on slow track only. IMD predicts more rain in next 6 hours.",
+        "location": { "city": "Mumbai", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "flood",
+        "severity": "MEDIUM",
+        "severity_score": 0.58,
+        "confidence_score": 0.78,
+        "trust_label": "VERIFIED",
+        "sources": [
+            { "source_name": "Times of India", "url": "https://timesofindia.indiatimes.com/mumbai-rain-andheri-flood", "snippet": "Waterlogging at Andheri subway after 3 hours of rain, traffic diverted" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "Urban flooding in low-lying areas, high tide worsening drainage",
+            "recommended_action": "Avoid Andheri subway, use Jogeshwari-Vikhroli Link Road"
+        },
+        "keywords": ["waterlogging", "Andheri", "local train disruption"],
+        "status": "active",
+        "timestamps": { "created_at": "08:30:00", "display_time": "14:00:00", "expiry_time": "20:30:00" }
+    },
+    {
+        "event_id": "EVT-002",
+        "title": "Chemical factory fire in Thane MIDC area spreading rapidly",
+        "summary": "Major fire at chemical storage unit in Thane. Toxic smoke rising. 8 fire engines fighting blaze. Avoid Ghodbunder Road.",
+        "full_description": "Fire broke out at 6:15 AM at Apex Chemicals in Thane MIDC area near Mumbai border. The fire started in a solvent storage tank and spread to adjacent units. Thick black smoke visible from Ghodbunder Road up to Borivali. 8 fire engines and 3 water tankers deployed. Two firefighters suffered smoke inhalation.",
+        "location": { "city": "Thane", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "industrial accident",
+        "severity": "HIGH",
+        "severity_score": 0.82,
+        "confidence_score": 0.70,
+        "trust_label": "VERIFIED",
+        "sources": [
+            { "source_name": "Hindustan Times", "url": "https://hindustantimes.com/thane-fire", "snippet": "Chemical factory blaze in Thane MIDC" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "Toxic smoke hazard, potential for explosion in nearby cylinders",
+            "recommended_action": "Close windows, avoid Thane-Mumbai corridor, wear N95 masks outdoors"
+        },
+        "keywords": ["chemical fire", "Thane MIDC", "toxic smoke"],
+        "status": "active",
+        "timestamps": { "created_at": "06:15:00", "display_time": "11:45:00", "expiry_time": "18:15:00" }
+    },
+    {
+        "event_id": "EVT-003",
+        "title": "Old building collapse in Thane West, 15 feared trapped",
+        "summary": "G+3 residential building collapsed in Rabodi area. NDRF and Fire Brigade on site. Rescue operations in progress.",
+        "full_description": "A 40-year-old residential building, 'Sai Prasad', collapsed today at 11:30 AM in the Rabodi area of Thane West. Preliminary reports suggest 15 residents are trapped under the debris. 4 fire engines and a specialized NDRF rescue team from Mumbai have reached the spot. 5 people have been rescued so far and sent to Thane Civil Hospital.",
+        "location": { "city": "Thane", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "infrastructure failure",
+        "severity": "CRITICAL",
+        "severity_score": 0.95,
+        "confidence_score": 0.92,
+        "trust_label": "VERIFIED",
+        "sources": [
+            { "source_name": "NDTV", "url": "https://ndtv.com/thane-building-collapse", "snippet": "Building collapse in Thane Rabodi, rescue ops ongoing" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "Structural instability in adjacent buildings",
+            "recommended_action": "Avoid the Rabodi area. Clear paths for ambulances."
+        },
+        "keywords": ["building collapse", "Thane", "NDRF"],
+        "status": "active",
+        "timestamps": { "created_at": "11:30:00", "display_time": "12:15:00", "expiry_time": "23:59:59" }
+    },
+    {
+        "event_id": "EVT-004",
+        "title": "Major Landslide on Mumbai-Pune Expressway near Lonavala",
+        "summary": "Debris blocking all lanes towards Mumbai. Traffic diverted to Old Highway.",
+        "full_description": "A massive landslide occurred at the Khandala ghat section of the Mumbai-Pune Expressway. Huge boulders and mud have blocked Mumbai-bound lanes. Highway Police have diverted all traffic to the Old Mumbai-Pune Highway.",
+        "location": { "city": "Lonavala", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "landslide",
+        "severity": "HIGH",
+        "severity_score": 0.85,
+        "confidence_score": 0.88,
+        "trust_label": "VERIFIED",
+        "sources": [
+            { "source_name": "Highway Police", "url": "https://mahapolice.gov.in/traffic", "snippet": "Landslide at Khandala, Expressway blocked" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "Potential for further slides due to rain",
+            "recommended_action": "Postpone non-essential travel between Mumbai and Pune."
+        },
+        "keywords": ["landslide", "Mumbai-Pune Expressway"],
+        "status": "active",
+        "timestamps": { "created_at": "05:45:00", "display_time": "08:00:00", "expiry_time": "20:00:00" }
+    },
+    {
+        "event_id": "EVT-005",
+        "title": "Gas Leak reported in Navi Mumbai Industrial Area (Taloja)",
+        "summary": "Foul smell reported across Taloja and Kharghar. Fire brigade investigating. Residents advised to stay indoors.",
+        "full_description": "A suspected ammonia gas leak from an industrial unit in Taloja MIDC has caused panic. Air quality monitoring is active.",
+        "location": { "city": "Navi Mumbai", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "industrial accident",
+        "severity": "MEDIUM",
+        "severity_score": 0.65,
+        "confidence_score": 0.75,
+        "trust_label": "PARTIALLY_VERIFIED",
+        "sources": [
+            { "source_name": "CIDCO Fire Dept", "url": "https://cidco.maharashtra.gov.in", "snippet": "Fire brigade responding to gas leak reports" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "Ammonia inhalation risk",
+            "recommended_action": "Stay indoors. Close all windows."
+        },
+        "keywords": ["gas leak", "Taloja", "Navi Mumbai"],
+        "status": "active",
+        "timestamps": { "created_at": "20:15:00", "display_time": "21:00:00", "expiry_time": "02:00:00" }
+    },
+    {
+        "event_id": "EVT-006",
+        "title": "Cyclone Warning: Deep Depression in Arabian Sea approaching Palghar",
+        "summary": "IMD issues Red Alert for Palghar. Wind speeds of 90kmph expected.",
+        "full_description": "The IMD has upgraded the weather system to a 'Severe Deep Depression'. Red Alert has been issued for Palghar district.",
+        "location": { "city": "Palghar", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "storm",
+        "severity": "CRITICAL",
+        "severity_score": 0.90,
+        "confidence_score": 0.95,
+        "trust_label": "VERIFIED",
+        "sources": [
+            { "source_name": "IMD", "url": "https://mausam.imd.gov.in", "snippet": "Red alert for Palghar" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "High wind damage risk",
+            "recommended_action": "Stay away from the coast. Secure loose objects."
+        },
+        "keywords": ["cyclone", "storm", "Palghar"],
+        "status": "active",
+        "timestamps": { "created_at": "16:00:00", "display_time": "18:30:00", "expiry_time": "48:00:00" }
+    },
+    {
+        "event_id": "EVT-007",
+        "title": "Bridge crack discovered on Ghatkopar-Mankhurd link road",
+        "summary": "Structural crack found on bridge. Bridge closed for heavy vehicles.",
+        "full_description": "BMC engineers discovered a 2-inch wide structural crack on the bridge connecting Ghatkopar to Mankhurd.",
+        "location": { "city": "Mumbai", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "infrastructure failure",
+        "severity": "MEDIUM",
+        "severity_score": 0.61,
+        "confidence_score": 0.79,
+        "trust_label": "VERIFIED",
+        "sources": [
+            { "source_name": "BMC", "url": "https://bmc.gov.in/bridge-crack", "snippet": "Structural audit ordered" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "Structural failure risk for heavy vehicles",
+            "recommended_action": "Avoid bridge if driving truck or bus."
+        },
+        "keywords": ["bridge crack", "Ghatkopar", "infrastructure"],
+        "status": "active",
+        "timestamps": { "created_at": "08:00:00", "display_time": "13:30:00", "expiry_time": "20:00:00" }
+    },
+    {
+        "event_id": "EVT-008",
+        "title": "Water contamination in Malad East - 50 people sick",
+        "summary": "50 residents hospitalized with gastroenteritis. Water contamination suspected.",
+        "full_description": "Residents of Malad East were hospitalized with vomiting and diarrhea. BMC suspects contamination of municipal water supply.",
+        "location": { "city": "Mumbai", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "infrastructure failure",
+        "severity": "HIGH",
+        "severity_score": 0.71,
+        "confidence_score": 0.82,
+        "trust_label": "VERIFIED",
+        "sources": [
+            { "source_name": "BMC", "url": "https://bmc.gov.in/malad-water", "snippet": "Samples collected, investigation ongoing" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "Waterborne disease outbreak",
+            "recommended_action": "Boil water before drinking in Malad East."
+        },
+        "keywords": ["water contamination", "Malad East", "health"],
+        "status": "active",
+        "timestamps": { "created_at": "09:15:00", "display_time": "14:45:00", "expiry_time": "21:15:00" }
+    },
+    {
+        "event_id": "EVT-009",
+        "title": "Fire at high-rise in Borivali West - 12 floors affected",
+        "summary": "Major fire in 20-story building. 5 rescued via ladders. Electrical short circuit suspected.",
+        "full_description": "Fire broke out on the 8th floor of Siddharth Heights in Borivali West. The fire spread through the duct to multiple floors.",
+        "location": { "city": "Mumbai", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "fire",
+        "severity": "HIGH",
+        "severity_score": 0.85,
+        "confidence_score": 0.88,
+        "trust_label": "VERIFIED",
+        "sources": [
+            { "source_name": "NDTV", "url": "https://ndtv.com/borivali-fire", "snippet": "High-rise fire in Borivali" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "Smoke inhalation primary risk",
+            "recommended_action": "Avoid Borivali West. Clear path for fire engines."
+        },
+        "keywords": ["fire", "high-rise", "Borivali"],
+        "status": "active",
+        "timestamps": { "created_at": "23:45:00", "display_time": "05:15:00", "expiry_time": "11:45:00" }
+    },
+    {
+        "event_id": "EVT-010",
+        "title": "Building wall collapse in Kurla due to metro excavation",
+        "summary": "Compound wall collapsed in Kurla East. MMRDA halts work.",
+        "full_description": "A 30-foot compound wall of Shanti Niwas building in Kurla (East) collapsed during metro line 4 excavation.",
+        "location": { "city": "Mumbai", "state": "Maharashtra", "country": "India" },
+        "disaster_type": "infrastructure failure",
+        "severity": "MEDIUM",
+        "severity_score": 0.45,
+        "confidence_score": 0.74,
+        "trust_label": "VERIFIED",
+        "sources": [
+            { "source_name": "MMRDA", "url": "https://mmrda.maharashtra.gov.in", "snippet": "Excavation halted for safety audit" }
+        ],
+        "ai_analysis": {
+            "risk_summary": "Potential foundation risk to adjacent structures",
+            "recommended_action": "Residents should report any new cracks immediately."
+        },
+        "keywords": ["wall collapse", "Kurla", "metro"],
+        "status": "active",
+        "timestamps": { "created_at": "14:00:00", "display_time": "19:30:00", "expiry_time": "02:00:00" }
+    }
+]

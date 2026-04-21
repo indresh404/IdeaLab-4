@@ -4,12 +4,20 @@ import 'package:flutter/services.dart';
 import 'package:lottie/lottie.dart';
 import 'package:crisis_clarity/theme/app_theme.dart';
 import 'package:crisis_clarity/components/user/post.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crisis_clarity/features/alerts/providers/alert_provider.dart';
+import 'package:crisis_clarity/core/constants.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'package:speech_to_text/speech_to_text.dart' as stt;
+import 'package:flutter_tts/flutter_tts.dart';
+import 'package:permission_handler/permission_handler.dart';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AI Avatar Lottie Widget - Controls animation behavior
 // ─────────────────────────────────────────────────────────────────────────────
 class AIAvatarLottie extends StatefulWidget {
-  final bool isLatestChat;   // true = infinite loop, false = freeze last frame
+  final bool isLatestChat;
   final double size;
   final Color borderColor;
 
@@ -37,8 +45,6 @@ class _AIAvatarLottieState extends State<AIAvatarLottie>
   @override
   void didUpdateWidget(AIAvatarLottie oldWidget) {
     super.didUpdateWidget(oldWidget);
-
-    // Update animation behavior when isLatestChat changes
     if (widget.isLatestChat != oldWidget.isLatestChat) {
       if (widget.isLatestChat) {
         _controller.repeat();
@@ -81,11 +87,10 @@ class _AIAvatarLottieState extends State<AIAvatarLottie>
           fit: BoxFit.cover,
           onLoaded: (composition) {
             _controller.duration = composition.duration;
-
             if (widget.isLatestChat) {
-              _controller.repeat(); // Latest reply loops forever
+              _controller.repeat();
             } else {
-              _controller.value = 1.0; // Freeze on last frame for older messages
+              _controller.value = 1.0;
             }
           },
         ),
@@ -96,24 +101,30 @@ class _AIAvatarLottieState extends State<AIAvatarLottie>
 
 // ─────────────────────────────────────────────────────────────────────────────
 // AIChatScreen
-// • [post] is optional — FAB on UserPage opens it without a specific post
-// • When a post is provided, the chat is contextualised to that alert
 // ─────────────────────────────────────────────────────────────────────────────
-class AIChatScreen extends StatefulWidget {
+class AIChatScreen extends ConsumerStatefulWidget {
   final Post? post;
   const AIChatScreen({super.key, this.post});
 
   @override
-  State<AIChatScreen> createState() => _AIChatScreenState();
+  ConsumerState<AIChatScreen> createState() => _AIChatScreenState();
 }
 
-class _AIChatScreenState extends State<AIChatScreen>
+class _AIChatScreenState extends ConsumerState<AIChatScreen>
     with TickerProviderStateMixin {
   final TextEditingController _inputCtrl = TextEditingController();
   final ScrollController _scrollCtrl = ScrollController();
   final List<_ChatMessage> _messages = [];
   bool _isTyping = false;
   bool _inputEnabled = true;
+  final FocusNode _focusNode = FocusNode();
+
+  // Voice Features
+  final stt.SpeechToText _speech = stt.SpeechToText();
+  final FlutterTts _tts = FlutterTts();
+  bool _isListening = false;
+  bool _isSpeaking = false;
+  String _lastWords = "";
 
   late final AnimationController _headerCtrl;
 
@@ -133,19 +144,106 @@ class _AIChatScreenState extends State<AIChatScreen>
         vsync: this, duration: const Duration(milliseconds: 800))
       ..forward();
 
+    _focusNode.addListener(() {
+      if (_focusNode.hasFocus) {
+        Future.delayed(const Duration(milliseconds: 300), () {
+          _scrollToBottom();
+        });
+      }
+    });
+
+    _initTts();
+
     Future.delayed(const Duration(milliseconds: 500), () {
       if (!mounted) return;
       setState(() {
         _messages.add(_ChatMessage(
           text: widget.post != null
-              ? 'Hi! I\'m your Crisis AI. I\'m here to help you navigate **${widget.post!.title}**.\n\nWhat would you like to know?'
+              ? 'Hi! I\'m your Crisis AI. I\'ve analyzed the report for **${widget.post!.title}**.\n\nGenerating a situation summary for you...'
               : 'Hi! I\'m your Crisis AI Assistant 👋\n\nI\'m here to help you stay safe. Ask me about alerts, shelters, emergency contacts, or evacuation routes.',
           isUser: false,
           timestamp: DateTime.now(),
         ));
       });
       _scrollToBottom();
+      
+      if (widget.post != null) {
+        _triggerSummary();
+      }
     });
+  }
+
+  void _initTts() {
+    _tts.setStartHandler(() => setState(() => _isSpeaking = true));
+    _tts.setCompletionHandler(() => setState(() => _isSpeaking = false));
+    _tts.setErrorHandler((msg) => setState(() => _isSpeaking = false));
+  }
+
+  Future<void> _speak(String text, {String lang = 'English'}) async {
+    if (text.isEmpty) return;
+    // Set TTS language based on AI response
+    if (lang == 'Hindi') {
+      await _tts.setLanguage('hi-IN');
+    } else if (lang == 'Marathi') {
+      await _tts.setLanguage('mr-IN');
+    } else {
+      await _tts.setLanguage('en-US');
+    }
+    await _tts.speak(text.replaceAll('**', '')); // Strip markdown
+  }
+
+  Future<void> _stopSpeaking() async {
+    await _tts.stop();
+    setState(() => _isSpeaking = false);
+  }
+
+  Future<void> _triggerSummary() async {
+    setState(() => _isTyping = true);
+    
+    try {
+      final contextText = widget.post != null 
+          ? "The user is viewing an alert about ${widget.post!.title} in ${widget.post!.location}. Content: ${widget.post!.content}"
+          : null;
+
+      final response = await http.post(
+        Uri.parse('${AppConstants.baseUrl}/chat'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'message': 'Generate a concise situational summary and safety advice for this event.',
+          'context': contextText,
+        }),
+      ).timeout(const Duration(seconds: 45));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final summary = data['response'];
+        final responseLang = data['language'] ?? 'English';
+
+        if (!mounted) return;
+        setState(() {
+          _isTyping = false;
+          _messages.add(_ChatMessage(
+            text: summary,
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+        });
+        _speak(summary, lang: responseLang);
+      } else {
+        throw Exception('Failed to get AI summary');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTyping = false;
+        _messages.add(_ChatMessage(
+          text: '❌ Local AI is initializing. Please wait a moment...',
+          isUser: false,
+          timestamp: DateTime.now(),
+        ));
+      });
+    }
+    _scrollToBottom();
   }
 
   @override
@@ -153,134 +251,257 @@ class _AIChatScreenState extends State<AIChatScreen>
     _headerCtrl.dispose();
     _inputCtrl.dispose();
     _scrollCtrl.dispose();
+    _focusNode.dispose();
+    _tts.stop();
+    _speech.stop();
     super.dispose();
   }
 
   void _scrollToBottom() {
     Future.delayed(const Duration(milliseconds: 100), () {
       if (_scrollCtrl.hasClients) {
-        _scrollCtrl.animateTo(_scrollCtrl.position.maxScrollExtent,
-            duration: const Duration(milliseconds: 350), curve: Curves.easeOut);
+        _scrollCtrl.animateTo(
+          _scrollCtrl.position.maxScrollExtent,
+          duration: const Duration(milliseconds: 350), 
+          curve: Curves.easeOut
+        );
       }
     });
   }
 
-  Future<void> _sendMessage(String text) async {
-    if (text.trim().isEmpty || !_inputEnabled) return;
-    HapticFeedback.lightImpact();
-    setState(() {
-      _messages.add(_ChatMessage(text: text.trim(), isUser: true, timestamp: DateTime.now()));
-      _isTyping = true;
-      _inputEnabled = false;
-    });
-    _inputCtrl.clear();
-    _scrollToBottom();
-    await Future.delayed(const Duration(milliseconds: 2000));
-    if (!mounted) return;
-    setState(() {
-      _isTyping = false;
-      _inputEnabled = true;
-      _messages.add(_ChatMessage(text: _respond(text), isUser: false, timestamp: DateTime.now()));
-    });
-    _scrollToBottom();
+  Future<void> _toggleListening() async {
+    if (_isListening) {
+      _stopListening();
+    } else {
+      _startListening();
+    }
   }
 
-  String _respond(String q) {
-    final ql = q.toLowerCase();
-    if (ql.contains('shelter') || ql.contains('safe place')) {
-      return '🏢 **Nearest Emergency Shelters:**\n\n• Chembur Gymkhana — 2.3 km\n• Municipal School, Kurla — 1.8 km\n• Community Hall, Dharavi — 3.1 km\n\nAll have medical aid, food, water & backup power. Bring ID if available.';
-    } else if (ql.contains('contact') || ql.contains('number') || ql.contains('call')) {
-      return '📞 **Emergency Contacts:**\n\n🚨 National Emergency — **112**\n🚒 Fire Brigade — **101**\n🏥 Ambulance — **108**\n👮 Police — **100**\n🌊 NDRF — 011-24363260\n🏙️ BMC — **1916**';
-    } else if (ql.contains('evacuat') || ql.contains('route') || ql.contains('leave')) {
-      return '🚗 **Evacuation Routes:**\n\nFrom Chembur:\n• Western Express Hwy via Sion — OPEN ✅\n• Eastern Freeway — CLOSED ❌\n\nFrom Kurla:\n• LBS Marg towards Thane — SLOW ⚠️\n\nAvoid underpasses. Follow police direction.';
-    } else if (ql.contains('safe') || ql.contains('tip') || ql.contains('precaution')) {
-      final label = widget.post?.severity.label ?? 'Current';
-      return '🛡️ **Safety Tips — $label Alert:**\n\n1. Stay indoors & away from windows\n2. Keep emergency kit ready\n3. Charge all devices now\n4. Store drinking water\n5. Monitor official channels only\n6. Help elderly neighbours if safe\n7. Do NOT spread unverified news';
+  Future<void> _startListening() async {
+    bool available = await _speech.initialize(
+      onStatus: (status) {
+        if (status == 'done' || status == 'notListening') {
+          setState(() => _isListening = false);
+        }
+      },
+      onError: (error) => setState(() => _isListening = false),
+    );
+
+    if (available) {
+      HapticFeedback.mediumImpact();
+      setState(() => _isListening = true);
+      _speech.listen(
+        onResult: (result) {
+          setState(() {
+            _lastWords = result.recognizedWords;
+            _inputCtrl.text = _lastWords;
+          });
+          if (result.finalResult) {
+            _sendMessage(_lastWords);
+          }
+        },
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Speech recognition not available')),
+      );
     }
-    return 'Based on the current crisis, I recommend following official NDRF/BMC advisories. For immediate help, call **112**.\n\nIs there something specific you need help with?';
+  }
+
+  void _stopListening() {
+    _speech.stop();
+    setState(() => _isListening = false);
+  }
+
+  Future<void> _sendMessage(String text) async {
+    if (text.trim().isEmpty || !_inputEnabled) return;
+    
+    final userMessage = text.trim();
+    HapticFeedback.lightImpact();
+    
+    setState(() {
+      _messages.add(_ChatMessage(text: userMessage, isUser: true, timestamp: DateTime.now()));
+      _isTyping = true;
+      _inputEnabled = false;
+      _isListening = false;
+    });
+    
+    _inputCtrl.clear();
+    _scrollToBottom();
+    _stopSpeaking();
+
+    try {
+      final contextText = widget.post != null 
+          ? "The user is viewing an alert about ${widget.post!.title} in ${widget.post!.location}. Content: ${widget.post!.content}"
+          : null;
+
+      final response = await http.post(
+        Uri.parse('${AppConstants.baseUrl}/chat'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'message': userMessage,
+          'context': contextText,
+        }),
+      ).timeout(const Duration(seconds: 45));
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        final aiResponse = data['response'];
+        final responseLang = data['language'] ?? 'English';
+
+        if (!mounted) return;
+        setState(() {
+          _isTyping = false;
+          _inputEnabled = true;
+          _messages.add(_ChatMessage(
+            text: aiResponse,
+            isUser: false,
+            timestamp: DateTime.now(),
+          ));
+        });
+        _speak(aiResponse, lang: responseLang);
+      } else {
+        throw Exception('Server error');
+      }
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _isTyping = false;
+        _inputEnabled = true;
+        _messages.add(_ChatMessage(
+          text: '⚠️ Local AI timed out. Please ensure Ollama is running and try again.',
+          isUser: false,
+          timestamp: DateTime.now(),
+        ));
+      });
+    }
+    _scrollToBottom();
   }
 
   @override
   Widget build(BuildContext context) {
     final color = _color;
-    final bottomInset = MediaQuery.of(context).viewInsets.bottom;
 
     return Scaffold(
       backgroundColor: const Color(0xFF09090F),
       resizeToAvoidBottomInset: true,
-      body: Stack(children: [
-        // Ambient glows
-        Positioned(top: -80, right: -80,
-            child: _GlowOrb(color: color, size: 340, opacity: 0.16)),
-        Positioned(bottom: 140, left: -60,
-            child: _GlowOrb(color: color, size: 260, opacity: 0.10)),
-
-        SafeArea(
-          child: Column(children: [
-            _buildHeader(color),
-            if (widget.post != null) _buildSeverityBanner(color),
-            Expanded(
-              child: _messages.isEmpty
-                  ? _buildEmptyState(color)
-                  : _buildMsgList(color),
+      body: GestureDetector(
+        onTap: () {
+          _focusNode.unfocus();
+        },
+        child: Stack(
+          children: [
+            Positioned(
+              top: -80, 
+              right: -80,
+              child: _GlowOrb(color: color, size: 340, opacity: 0.16)
             ),
-            if (!_isTyping && _messages.length <= 1) _buildSuggestions(color),
-            _buildInput(color, bottomInset),
-          ]),
+            Positioned(
+              bottom: 140, 
+              left: -60,
+              child: _GlowOrb(color: color, size: 260, opacity: 0.10)
+            ),
+            SafeArea(
+              child: Column(
+                children: [
+                  _buildHeader(color),
+                  if (widget.post != null) _buildSeverityBanner(color),
+                  Expanded(
+                    child: _messages.isEmpty
+                        ? _buildEmptyState(color)
+                        : _buildMsgList(color),
+                  ),
+                  if (!_isTyping && _messages.length <= 1)
+                    _buildSuggestions(color),
+                  _buildInput(color),
+                ],
+              ),
+            ),
+            if (_isListening) _buildListeningOverlay(color),
+          ],
         ),
-      ]),
+      ),
     );
   }
 
-  // ── Header ────────────────────────────────────────────────────────────────
+  Widget _buildListeningOverlay(Color color) {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withOpacity(0.85),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Lottie.asset('assets/animations/ai_loading.json', width: 220),
+            const SizedBox(height: 30),
+            const Text('Listening...', style: TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.bold)),
+            const SizedBox(height: 12),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 40),
+              child: Text(_lastWords, textAlign: TextAlign.center, style: const TextStyle(color: Colors.white70, fontSize: 18)),
+            ),
+            const SizedBox(height: 50),
+            GestureDetector(
+              onTap: _stopListening,
+              child: Container(
+                padding: const EdgeInsets.all(20),
+                decoration: const BoxDecoration(shape: BoxShape.circle, color: Colors.white12),
+                child: const Icon(Icons.close, color: Colors.white, size: 36),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
   Widget _buildHeader(Color color) {
     return SlideTransition(
       position: Tween<Offset>(begin: const Offset(0, -0.4), end: Offset.zero)
           .animate(CurvedAnimation(parent: _headerCtrl, curve: Curves.easeOutCubic)),
       child: Padding(
         padding: const EdgeInsets.fromLTRB(4, 10, 16, 10),
-        child: Row(children: [
-          IconButton(
-            icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white60, size: 19),
-            onPressed: () => Navigator.pop(context),
-          ),
-          // Header AI Avatar - Always loops
-          AIAvatarLottie(
-            isLatestChat: true,
-            size: 46,
-            borderColor: color,
-          ),
-          const SizedBox(width: 12),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-            const Text('Crisis AI',
-                style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
-                    color: Colors.white, letterSpacing: -0.3)),
-            Row(children: [
-              Container(width: 7, height: 7,
-                  decoration: const BoxDecoration(
-                      shape: BoxShape.circle, color: Color(0xFF4CAF50))),
-              const SizedBox(width: 5),
-              const Text('Online · Ready to help',
-                  style: TextStyle(fontSize: 11.5, color: Colors.white54)),
-            ]),
-          ])),
-          if (widget.post != null)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
-              decoration: BoxDecoration(
-                color: color.withOpacity(0.14),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: color.withOpacity(0.3)),
-              ),
-              child: Row(mainAxisSize: MainAxisSize.min, children: [
-                Icon(Icons.warning_amber_rounded, size: 11, color: color),
-                const SizedBox(width: 4),
-                Text(widget.post!.severity.label.toUpperCase(),
-                    style: TextStyle(fontSize: 9.5, fontWeight: FontWeight.w800,
-                        color: color, letterSpacing: 0.5)),
-              ]),
+        child: Row(
+          children: [
+            IconButton(
+              icon: const Icon(Icons.arrow_back_ios_new, color: Colors.white60, size: 19),
+              onPressed: () => Navigator.pop(context),
             ),
-        ]),
+            AIAvatarLottie(
+              isLatestChat: true,
+              size: 46,
+              borderColor: color,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start, 
+                children: [
+                  const Text('Crisis AI',
+                      style: TextStyle(fontSize: 17, fontWeight: FontWeight.w800,
+                          color: Colors.white, letterSpacing: -0.3)),
+                  Row(
+                    children: [
+                      Container(
+                        width: 7, 
+                        height: 7,
+                        decoration: const BoxDecoration(
+                            shape: BoxShape.circle, color: Color(0xFF4CAF50)
+                        ),
+                      ),
+                      const SizedBox(width: 5),
+                      const Text('Online · Ready to help',
+                          style: TextStyle(fontSize: 11.5, color: Colors.white54)),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+            IconButton(
+              icon: Icon(_isSpeaking ? Icons.volume_up : Icons.volume_off, color: color),
+              onPressed: () => _isSpeaking ? _stopSpeaking() : null,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -295,31 +516,45 @@ class _AIChatScreenState extends State<AIChatScreen>
         borderRadius: BorderRadius.circular(14),
         border: Border.all(color: color.withOpacity(0.2)),
       ),
-      child: Row(children: [
-        Icon(Icons.crisis_alert, color: color, size: 16),
-        const SizedBox(width: 8),
-        Expanded(child: Text(
-          title.length > 55 ? '${title.substring(0, 55)}…' : title,
-          style: TextStyle(fontSize: 12, color: color.withOpacity(0.9),
-              fontWeight: FontWeight.w600),
-        )),
-      ]),
+      child: Row(
+        children: [
+          Icon(Icons.crisis_alert, color: color, size: 16),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Text(
+              title.length > 55 ? '${title.substring(0, 55)}…' : title,
+              style: TextStyle(
+                fontSize: 12, 
+                color: color.withOpacity(0.9),
+                fontWeight: FontWeight.w600
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
   Widget _buildEmptyState(Color color) => Center(
-    child: Column(mainAxisAlignment: MainAxisAlignment.center, children: [
-      // Empty state AI Avatar - Always loops
-      AIAvatarLottie(
-        isLatestChat: true,
-        size: 130,
-        borderColor: color,
-      ),
-      const SizedBox(height: 14),
-      Text('Initializing AI…',
-          style: TextStyle(color: Colors.white.withOpacity(0.4),
-              fontSize: 14, fontWeight: FontWeight.w500)),
-    ]),
+    child: Column(
+      mainAxisAlignment: MainAxisAlignment.center, 
+      children: [
+        AIAvatarLottie(
+          isLatestChat: true,
+          size: 130,
+          borderColor: color,
+        ),
+        const SizedBox(height: 14),
+        Text(
+          'Initializing AI…',
+          style: TextStyle(
+            color: Colors.white.withOpacity(0.4),
+            fontSize: 14, 
+            fontWeight: FontWeight.w500
+          ),
+        ),
+      ],
+    ),
   );
 
   Widget _buildMsgList(Color color) => ListView.builder(
@@ -327,7 +562,9 @@ class _AIChatScreenState extends State<AIChatScreen>
     padding: const EdgeInsets.fromLTRB(16, 8, 16, 4),
     itemCount: _messages.length + (_isTyping ? 1 : 0),
     itemBuilder: (_, i) {
-      if (_isTyping && i == _messages.length) return _TypingIndicator(color: color);
+      if (_isTyping && i == _messages.length) {
+        return _TypingIndicator(color: color);
+      }
       return _MessageBubble(
         message: _messages[i],
         color: color,
@@ -336,8 +573,9 @@ class _AIChatScreenState extends State<AIChatScreen>
     },
   );
 
-  Widget _buildSuggestions(Color color) => SizedBox(
+  Widget _buildSuggestions(Color color) => Container(
     height: 44,
+    margin: const EdgeInsets.only(bottom: 8),
     child: ListView.separated(
       scrollDirection: Axis.horizontal,
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -352,80 +590,116 @@ class _AIChatScreenState extends State<AIChatScreen>
             borderRadius: BorderRadius.circular(22),
             border: Border.all(color: color.withOpacity(0.28)),
           ),
-          child: Text(_suggestions[i].label,
-              style: TextStyle(fontSize: 12.5, color: color.withOpacity(0.9),
-                  fontWeight: FontWeight.w600)),
+          child: Text(
+            _suggestions[i].label,
+            style: TextStyle(
+              fontSize: 12.5, 
+              color: color.withOpacity(0.9),
+              fontWeight: FontWeight.w600
+            ),
+          ),
         ),
       ),
     ),
   );
 
-  Widget _buildInput(Color color, double bottomInset) => AnimatedPadding(
-    duration: const Duration(milliseconds: 200),
-    padding: EdgeInsets.fromLTRB(16, 8, 16, 16 + bottomInset),
-    child: Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        Expanded(
-          child: Container(
-            constraints: const BoxConstraints(minHeight: 48, maxHeight: 120),
-            decoration: BoxDecoration(
-              color: Colors.white.withOpacity(0.07),
-              borderRadius: BorderRadius.circular(28),
-              border: Border.all(color: Colors.white.withOpacity(0.12)),
-            ),
-            child: TextField(
-              controller: _inputCtrl,
-              enabled: _inputEnabled,
-              style: const TextStyle(color: Colors.white, fontSize: 14),
-              maxLines: null,
-              minLines: 1,
-              keyboardType: TextInputType.multiline,
-              textInputAction: TextInputAction.send,
-              onSubmitted: _sendMessage,
-              decoration: InputDecoration(
-                hintText: 'Ask about this crisis…',
-                hintStyle: TextStyle(color: Colors.white.withOpacity(0.28), fontSize: 14),
-                border: InputBorder.none,
-                contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+  Widget _buildInput(Color color) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      decoration: BoxDecoration(
+        color: const Color(0xFF09090F),
+        border: Border(
+          top: BorderSide(
+            color: Colors.white.withOpacity(0.05),
+            width: 0.5,
+          ),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: [
+          IconButton(
+            icon: Icon(_isListening ? Icons.mic : Icons.mic_none, color: color, size: 26),
+            onPressed: _toggleListening,
+          ),
+          Expanded(
+            child: Container(
+              constraints: const BoxConstraints(
+                minHeight: 48, 
+                maxHeight: 100,
+              ),
+              decoration: BoxDecoration(
+                color: Colors.white.withOpacity(0.07),
+                borderRadius: BorderRadius.circular(28),
+                border: Border.all(color: Colors.white.withOpacity(0.12)),
+              ),
+              child: TextField(
+                controller: _inputCtrl,
+                focusNode: _focusNode,
+                enabled: _inputEnabled,
+                style: const TextStyle(color: Colors.white, fontSize: 14),
+                maxLines: 5,
+                minLines: 1,
+                keyboardType: TextInputType.multiline,
+                textInputAction: TextInputAction.send,
+                onSubmitted: _sendMessage,
+                decoration: InputDecoration(
+                  hintText: 'Ask about this crisis…',
+                  hintStyle: TextStyle(
+                    color: Colors.white.withOpacity(0.28), 
+                    fontSize: 14
+                  ),
+                  border: InputBorder.none,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 13),
+                ),
               ),
             ),
           ),
-        ),
-        const SizedBox(width: 10),
-        GestureDetector(
-          onTap: () => _sendMessage(_inputCtrl.text),
-          child: Container(
-            width: 48, height: 48,
-            margin: const EdgeInsets.only(bottom: 0),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              gradient: LinearGradient(
+          const SizedBox(width: 10),
+          GestureDetector(
+            onTap: () => _sendMessage(_inputCtrl.text),
+            child: Container(
+              width: 48, 
+              height: 48,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                gradient: LinearGradient(
                   colors: [color, color.withOpacity(0.7)],
-                  begin: Alignment.topLeft, end: Alignment.bottomRight),
-              boxShadow: [BoxShadow(color: color.withOpacity(0.4), blurRadius: 14,
-                  offset: const Offset(0, 4))],
+                  begin: Alignment.topLeft, 
+                  end: Alignment.bottomRight
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: color.withOpacity(0.4), 
+                    blurRadius: 14,
+                    offset: const Offset(0, 4)
+                  )
+                ],
+              ),
+              child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
             ),
-            child: const Icon(Icons.send_rounded, color: Colors.white, size: 20),
           ),
-        ),
-      ],
-    ),
-  );
+        ],
+      ),
+    );
+  }
 }
 
-// ─────────────────────────────────────────────────────────────────────────────
-// Helpers
-// ─────────────────────────────────────────────────────────────────────────────
 class _GlowOrb extends StatelessWidget {
-  final Color color; final double size, opacity;
+  final Color color; 
+  final double size, opacity;
   const _GlowOrb({required this.color, required this.size, required this.opacity});
+  
   @override
   Widget build(BuildContext context) => Container(
-    width: size, height: size,
-    decoration: BoxDecoration(shape: BoxShape.circle,
-        gradient: RadialGradient(
-            colors: [color.withOpacity(opacity), Colors.transparent])),
+    width: size, 
+    height: size,
+    decoration: BoxDecoration(
+      shape: BoxShape.circle,
+      gradient: RadialGradient(
+        colors: [color.withOpacity(opacity), Colors.transparent]
+      ),
+    ),
   );
 }
 
@@ -446,13 +720,25 @@ class _MessageBubble extends StatefulWidget {
 
 class _MessageBubbleState extends State<_MessageBubble>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _c =
-  AnimationController(vsync: this, duration: const Duration(milliseconds: 350))..forward();
-  late final Animation<double> _scale =
-  Tween(begin: 0.86, end: 1.0).animate(CurvedAnimation(parent: _c, curve: Curves.easeOutBack));
-  late final Animation<double> _fade = CurvedAnimation(parent: _c, curve: Curves.easeOut);
+  late final AnimationController _c = AnimationController(
+    vsync: this, 
+    duration: const Duration(milliseconds: 350)
+  )..forward();
+  
+  late final Animation<double> _scale = Tween(begin: 0.86, end: 1.0).animate(
+    CurvedAnimation(parent: _c, curve: Curves.easeOutBack)
+  );
+  
+  late final Animation<double> _fade = CurvedAnimation(
+    parent: _c, 
+    curve: Curves.easeOut
+  );
 
-  @override void dispose() { _c.dispose(); super.dispose(); }
+  @override 
+  void dispose() { 
+    _c.dispose(); 
+    super.dispose(); 
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -470,10 +756,8 @@ class _MessageBubbleState extends State<_MessageBubble>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (!isUser) ...[
-                // AI Avatar in message bubble
-                // Latest AI message loops forever, older ones freeze
                 AIAvatarLottie(
-                  isLatestChat: widget.isLatestMessage, // Only latest message loops
+                  isLatestChat: widget.isLatestMessage,
                   size: 32,
                   borderColor: color,
                 ),
@@ -484,8 +768,10 @@ class _MessageBubbleState extends State<_MessageBubble>
                   padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   decoration: BoxDecoration(
                     gradient: isUser ? LinearGradient(
-                        colors: [color, color.withOpacity(0.75)],
-                        begin: Alignment.topLeft, end: Alignment.bottomRight) : null,
+                      colors: [color, color.withOpacity(0.75)],
+                      begin: Alignment.topLeft, 
+                      end: Alignment.bottomRight
+                    ) : null,
                     color: isUser ? null : Colors.white.withOpacity(0.08),
                     borderRadius: BorderRadius.only(
                       topLeft: const Radius.circular(18),
@@ -494,8 +780,13 @@ class _MessageBubbleState extends State<_MessageBubble>
                       bottomRight: Radius.circular(isUser ? 4 : 18),
                     ),
                     border: isUser ? null : Border.all(color: Colors.white.withOpacity(0.1)),
-                    boxShadow: isUser ? [BoxShadow(color: color.withOpacity(0.28),
-                        blurRadius: 12, offset: const Offset(0, 4))] : null,
+                    boxShadow: isUser ? [
+                      BoxShadow(
+                        color: color.withOpacity(0.28),
+                        blurRadius: 12, 
+                        offset: const Offset(0, 4)
+                      )
+                    ] : null,
                   ),
                   child: _richText(widget.message.text, isUser),
                 ),
@@ -503,7 +794,8 @@ class _MessageBubbleState extends State<_MessageBubble>
               if (isUser) ...[
                 const SizedBox(width: 8),
                 Container(
-                  width: 32, height: 32,
+                  width: 32, 
+                  height: 32,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: Colors.white.withOpacity(0.1),
@@ -524,15 +816,27 @@ class _MessageBubbleState extends State<_MessageBubble>
     final re = RegExp(r'\*\*(.*?)\*\*');
     int last = 0;
     for (final m in re.allMatches(text)) {
-      if (m.start > last) spans.add(TextSpan(text: text.substring(last, m.start)));
-      spans.add(TextSpan(text: m.group(1), style: const TextStyle(fontWeight: FontWeight.w700)));
+      if (m.start > last) {
+        spans.add(TextSpan(text: text.substring(last, m.start)));
+      }
+      spans.add(
+        TextSpan(
+          text: m.group(1), 
+          style: const TextStyle(fontWeight: FontWeight.w700)
+        )
+      );
       last = m.end;
     }
-    if (last < text.length) spans.add(TextSpan(text: text.substring(last)));
+    if (last < text.length) {
+      spans.add(TextSpan(text: text.substring(last)));
+    }
     return RichText(
       text: TextSpan(
-        style: TextStyle(fontSize: 13.5, height: 1.55,
-            color: isUser ? Colors.white : Colors.white.withOpacity(0.88)),
+        style: TextStyle(
+          fontSize: 13.5, 
+          height: 1.55,
+          color: isUser ? Colors.white : Colors.white.withOpacity(0.88)
+        ),
         children: spans,
       ),
     );
@@ -546,33 +850,40 @@ class _TypingIndicator extends StatelessWidget {
   @override
   Widget build(BuildContext context) => Padding(
     padding: const EdgeInsets.only(bottom: 14),
-    child: Row(crossAxisAlignment: CrossAxisAlignment.end, children: [
-      // Typing indicator AI Avatar - Always loops
-      AIAvatarLottie(
-        isLatestChat: true, // During typing, show infinite animation
-        size: 32,
-        borderColor: color,
-      ),
-      const SizedBox(width: 10),
-      Container(
-        padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
-        decoration: BoxDecoration(
-          color: Colors.white.withOpacity(0.08),
-          borderRadius: const BorderRadius.only(
-            topLeft: Radius.circular(18), topRight: Radius.circular(18),
-            bottomRight: Radius.circular(18), bottomLeft: Radius.circular(4),
-          ),
-          border: Border.all(color: Colors.white.withOpacity(0.1)),
+    child: Row(
+      crossAxisAlignment: CrossAxisAlignment.end, 
+      children: [
+        AIAvatarLottie(
+          isLatestChat: true,
+          size: 32,
+          borderColor: color,
         ),
-        child: const SizedBox(
-          width: 60,
-          height: 20,
-          child: Center(
-            child: Text('...', style: TextStyle(color: Colors.white60, fontSize: 18)),
+        const SizedBox(width: 10),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 13),
+          decoration: BoxDecoration(
+            color: Colors.white.withOpacity(0.08),
+            borderRadius: const BorderRadius.only(
+              topLeft: Radius.circular(18), 
+              topRight: Radius.circular(18),
+              bottomRight: Radius.circular(18), 
+              bottomLeft: Radius.circular(4),
+            ),
+            border: Border.all(color: Colors.white.withOpacity(0.1)),
+          ),
+          child: const SizedBox(
+            width: 60,
+            height: 20,
+            child: Center(
+              child: Text(
+                '...', 
+                style: TextStyle(color: Colors.white60, fontSize: 18)
+              ),
+            ),
           ),
         ),
-      ),
-    ]),
+      ],
+    ),
   );
 }
 

@@ -21,6 +21,12 @@ class AlertModel {
   final int understood;
   final int notUnderstood;
   final int totalViews;
+  final int trustScore; // 0-100
+  final String trustStatus; // verified, partial, fake
+  final List<String> sourcesChecked;
+  final String verificationReason;
+  final bool hasConflict;
+  final bool usingRealData;
 
   AlertModel({
     required this.id,
@@ -43,6 +49,12 @@ class AlertModel {
     this.understood = 0,
     this.notUnderstood = 0,
     this.totalViews = 0,
+    this.trustScore = 50,
+    this.trustStatus = 'partial',
+    this.sourcesChecked = const [],
+    this.verificationReason = 'Awaiting AI verification...',
+    this.hasConflict = false,
+    this.usingRealData = false,
   });
 
   factory AlertModel.fromFirestore(DocumentSnapshot doc) {
@@ -68,7 +80,43 @@ class AlertModel {
       understood: data['understood'] ?? 0,
       notUnderstood: data['notUnderstood'] ?? 0,
       totalViews: data['totalViews'] ?? 0,
+      trustScore: data['trustScore'] ?? 50,
+      trustStatus: data['trustStatus'] ?? 'partial',
+      sourcesChecked: List<String>.from(data['sourcesChecked'] ?? []),
+      verificationReason: data['verificationReason'] ?? 'Awaiting AI verification...',
+      hasConflict: data['hasConflict'] ?? false,
+      usingRealData: data['usingRealData'] ?? false,
     );
+  }
+
+  Map<String, dynamic> toFirestore() {
+    return {
+      'title': titleEn,
+      'titleHi': titleHi,
+      'titleMr': titleMr,
+      'description': descriptionEn,
+      'descriptionHi': descriptionHi,
+      'descriptionMr': descriptionMr,
+      'simplifiedEn': simplifiedEn,
+      'simplifiedHi': simplifiedHi,
+      'simplifiedMr': simplifiedMr,
+      'disasterType': disasterType,
+      'severity': severity,
+      'affectedZones': affectedZones,
+      'postedBy': postedBy,
+      'createdAt': createdAt,
+      'updatedAt': updatedAt,
+      'isActive': isActive,
+      'understood': understood,
+      'notUnderstood': notUnderstood,
+      'totalViews': totalViews,
+      'trustScore': trustScore,
+      'trustStatus': trustStatus,
+      'sourcesChecked': sourcesChecked,
+      'verificationReason': verificationReason,
+      'hasConflict': hasConflict,
+      'usingRealData': usingRealData,
+    };
   }
 
   // Helper to get localized title based on language code

@@ -1,42 +1,110 @@
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:crisis_clarity/theme/app_theme.dart';
+import 'package:crisis_clarity/features/alerts/providers/alert_provider.dart';
 import 'package:lottie/lottie.dart';
+import 'package:intl/intl.dart';
 
-class UpdateSection extends StatefulWidget {
+class UpdateSection extends ConsumerStatefulWidget {
   const UpdateSection({super.key});
 
   @override
-  State<UpdateSection> createState() => _UpdateSectionState();
+  ConsumerState<UpdateSection> createState() => _UpdateSectionState();
 }
 
-class _UpdateSectionState extends State<UpdateSection> {
-  bool _isLoading = true;
-  bool _hasUpdates = false; // Set to true to show updates, false for empty state
+class _UpdateSectionState extends ConsumerState<UpdateSection> {
+  String _searchQuery = "";
+  final TextEditingController _searchCtrl = TextEditingController();
 
   @override
-  void initState() {
-    super.initState();
-    // Show loading for 5 seconds then switch to empty state
-    // Change _hasUpdates to true if you want to show updates instead
-    Future.delayed(const Duration(seconds: 5), () {
-      if (mounted) {
-        setState(() {
-          _isLoading = false;
-          _hasUpdates = false; // Set to true to show updates
-        });
-      }
-    });
+  void dispose() {
+    _searchCtrl.dispose();
+    super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+    final newsAsync = ref.watch(liveNewsProvider);
+
     return Scaffold(
       backgroundColor: Colors.grey[50],
-      body: _isLoading
-          ? _buildLoadingState()
-          : _hasUpdates
-          ? _buildUpdatesList()
-          : _buildEmptyState(),
+      appBar: AppBar(
+        title: const Text('Disaster Intelligence', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 18)),
+        backgroundColor: Colors.white,
+        elevation: 0,
+        centerTitle: true,
+      ),
+      body: Column(
+        children: [
+          _buildSearchBar(),
+          Expanded(
+            child: newsAsync.when(
+              data: (news) {
+                final filtered = news.where((n) {
+                  final title = n['title']?.toString().toLowerCase() ?? "";
+                  final desc = n['description']?.toString().toLowerCase() ?? "";
+                  return title.contains(_searchQuery.toLowerCase()) || 
+                         desc.contains(_searchQuery.toLowerCase());
+                }).toList();
+
+                if (news.isEmpty) return _buildEmptyState();
+                if (filtered.isEmpty) return _buildNoResultsState();
+                return _buildUpdatesList(filtered);
+              },
+              loading: () => _buildLoadingState(),
+              error: (err, stack) => _buildErrorState(err.toString()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+      color: Colors.white,
+      child: TextField(
+        controller: _searchCtrl,
+        onChanged: (val) => setState(() => _searchQuery = val),
+        decoration: InputDecoration(
+          hintText: 'Search updates...',
+          prefixIcon: const Icon(Icons.search, color: AppTheme.primaryRed),
+          suffixIcon: _searchQuery.isNotEmpty 
+              ? IconButton(icon: const Icon(Icons.clear), onPressed: () {
+                  _searchCtrl.clear();
+                  setState(() => _searchQuery = "");
+                }) 
+              : null,
+          filled: true,
+          fillColor: Colors.grey[100],
+          contentPadding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(30),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildNoResultsState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.search_off_rounded, size: 80, color: Colors.grey[300]),
+          const SizedBox(height: 16),
+          Text('No matches for "$_searchQuery"', style: TextStyle(color: Colors.grey[500], fontSize: 16)),
+          TextButton(
+            onPressed: () {
+              _searchCtrl.clear();
+              setState(() => _searchQuery = "");
+            },
+            child: const Text('Clear Search'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -46,21 +114,34 @@ class _UpdateSectionState extends State<UpdateSection> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
-            width: 300,
-            height: 300,
+            width: 250,
+            height: 250,
             child: Lottie.asset(
               'assets/animations/update_loading.json',
               fit: BoxFit.contain,
             ),
           ),
-          const SizedBox(height: 54),
-          const Text(
-            'Fetching latest updates...',
-            style: TextStyle(
-              fontSize: 16,
-              color: Colors.grey,
-              fontWeight: FontWeight.w500,
-            ),
+          const SizedBox(height: 20),
+          const Text('Scanning for latest updates...',
+              style: TextStyle(fontSize: 16, color: Colors.grey, fontWeight: FontWeight.w500)),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildErrorState(String error) {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          const Icon(Icons.error_outline, color: Colors.red, size: 60),
+          const SizedBox(height: 16),
+          Text('Failed to load updates: $error', 
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: Colors.grey)),
+          TextButton(
+            onPressed: () => ref.invalidate(liveNewsProvider),
+            child: const Text('Try Again'),
           ),
         ],
       ),
@@ -73,129 +154,70 @@ class _UpdateSectionState extends State<UpdateSection> {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           SizedBox(
-            width: 350,
-            height: 350,
-            child: Lottie.asset(
-              'assets/animations/nothing_here_animation.json',
-              fit: BoxFit.contain,
-            ),
+            width: 300, height: 300,
+            child: Lottie.asset('assets/animations/nothing_here_animation.json', fit: BoxFit.contain),
           ),
-          const SizedBox(height: 26),
-          const Text(
-            'No Recent Updates',
-            style: TextStyle(
-              fontSize: 24,
-              fontWeight: FontWeight.bold,
-              color: AppTheme.primaryRed,
-            ),
-          ),
+          const Text('No Recent Updates',
+              style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: AppTheme.primaryRed)),
           const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32),
-            child: Text(
-              'There are no new updates at the moment.\nCheck back later for the latest information on weather, traffic, and emergency services.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 14,
-                color: Colors.grey[600],
-                height: 1.5,
-              ),
-            ),
-          ),
+          const Text('Check back later for real-time information.', style: TextStyle(color: Colors.grey)),
           const SizedBox(height: 24),
-          ElevatedButton.icon(
-            onPressed: () {
-              setState(() {
-                _isLoading = true;
-              });
-              // Simulate refresh
-              Future.delayed(const Duration(seconds: 5), () {
-                if (mounted) {
-                  setState(() {
-                    _isLoading = false;
-                    _hasUpdates = false; // Set to true to show updates
-                  });
-                }
-              });
-            },
-            icon: const Icon(Icons.refresh, size: 18),
-            label: const Text('Refresh'),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppTheme.primaryRed,
-              foregroundColor: Colors.white,
-              padding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 12,
-              ),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(30),
-              ),
-            ),
+          ElevatedButton(
+            onPressed: () => ref.invalidate(liveNewsProvider),
+            style: ElevatedButton.styleFrom(backgroundColor: AppTheme.primaryRed, foregroundColor: Colors.white),
+            child: const Text('Refresh'),
           ),
         ],
       ),
     );
   }
 
-  Widget _buildUpdatesList() {
-    return ListView(
-      padding: const EdgeInsets.all(16),
-      children: [
-        _buildUpdateCard(
-          icon: Icons.water_drop,
-          title: 'Waterlogging in parts of Mumbai',
-          source: 'BMC Control Room',
-          time: 'Just now',
-          description: 'Waterlogging reported in Kurla, Sion, and Dadar areas. Water levels: Kurla Bridge - 2ft, Sion - 1.5ft. Traffic diverted. Pumps deployed.',
-          isUrgent: true,
-        ),
-        const SizedBox(height: 12),
-        _buildUpdateCard(
-          icon: Icons.train,
-          title: 'Local Train Updates',
-          source: 'Western Railway',
-          time: '5 mins ago',
-          description: 'Trains running 20-25 mins late on Western line due to waterlogging near Bandra. Central line services delayed by 15 mins. Harbour line functioning normally.',
-          isUrgent: false,
-        ),
-        const SizedBox(height: 12),
-        _buildUpdateCard(
-          icon: Icons.electrical_services,
-          title: 'Power Outage',
-          source: 'BEST',
-          time: '15 mins ago',
-          description: 'Power supply disrupted in parts of Bandra East and Khar due to technical fault. Restoration work in progress. Estimated restoration time: 2 hours.',
-          isUrgent: true,
-        ),
-        const SizedBox(height: 12),
-        _buildUpdateCard(
-          icon: Icons.local_hospital,
-          title: 'Medical Emergency Services',
-          source: 'Health Department',
-          time: '25 mins ago',
-          description: 'All major hospitals on high alert. Additional ambulances deployed in flood-prone areas. Emergency helpline: 108 active 24/7.',
-          isUrgent: false,
-        ),
-        const SizedBox(height: 12),
-        _buildUpdateCard(
-          icon: Icons.school,
-          title: 'School & College Closures',
-          source: 'Education Department',
-          time: '1 hr ago',
-          description: 'All schools and colleges in Mumbai to remain closed tomorrow. Online classes will continue. Exams scheduled for tomorrow postponed.',
-          isUrgent: false,
-        ),
-        const SizedBox(height: 12),
-        _buildUpdateCard(
-          icon: Icons.traffic,
-          title: 'Traffic Advisory',
-          source: 'Traffic Police',
-          time: '1.5 hrs ago',
-          description: 'Avoid Western Express Highway due to waterlogging at Kherwadi. Alternate routes: JVLR and LBS Marg. Andheri subway closed.',
-          isUrgent: true,
-        ),
-      ],
+  Widget _buildUpdatesList(List<Map<String, dynamic>> news) {
+    return RefreshIndicator(
+      onRefresh: () async => ref.invalidate(liveNewsProvider),
+      child: ListView.builder(
+        padding: const EdgeInsets.all(16),
+        itemCount: news.length,
+        itemBuilder: (context, index) {
+          final n = news[index];
+          final severity = n['severity']?.toString().toLowerCase() ?? 'low';
+          final isUrgent = severity == 'high' || severity == 'critical';
+          
+          return Padding(
+            padding: const EdgeInsets.only(bottom: 12),
+            child: _buildUpdateCard(
+              icon: _getIconForDisaster(n['disaster_type']?.toString()),
+              title: n['title'] ?? 'Disaster Update',
+              source: n['source'] ?? 'Verified News',
+              time: _formatTimestamp(n['published']),
+              description: n['description'] ?? 'No details available.',
+              isUrgent: isUrgent,
+            ),
+          );
+        },
+      ),
     );
+  }
+
+  String _formatTimestamp(dynamic timestamp) {
+    if (timestamp == null) return 'Recently';
+    try {
+      if (timestamp is String) return timestamp;
+      // Handle other formats if needed
+      return 'Recently';
+    } catch (e) {
+      return 'Recently';
+    }
+  }
+
+  IconData _getIconForDisaster(String? type) {
+    switch (type?.toLowerCase()) {
+      case 'flood': return Icons.water_drop;
+      case 'fire': return Icons.local_fire_department;
+      case 'storm': return Icons.cyclone;
+      case 'earthquake': return Icons.landscape;
+      default: return Icons.warning_amber_rounded;
+    }
   }
 
   Widget _buildUpdateCard({
@@ -210,17 +232,8 @@ class _UpdateSectionState extends State<UpdateSection> {
       decoration: BoxDecoration(
         color: Colors.white,
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isUrgent ? AppTheme.primaryRed : Colors.grey[200]!,
-          width: isUrgent ? 1.5 : 1,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.grey.withOpacity(0.05),
-            spreadRadius: 1,
-            blurRadius: 4,
-          ),
-        ],
+        border: Border.all(color: isUrgent ? AppTheme.primaryRed : Colors.grey[200]!, width: isUrgent ? 1.5 : 1),
+        boxShadow: [BoxShadow(color: Colors.grey.withOpacity(0.05), blurRadius: 4)],
       ),
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -230,97 +243,51 @@ class _UpdateSectionState extends State<UpdateSection> {
             Row(
               children: [
                 Container(
-                  width: 36,
-                  height: 36,
-                  decoration: BoxDecoration(
-                    color: isUrgent
-                        ? AppTheme.primaryRed.withOpacity(0.1)
-                        : Colors.grey[100],
-                    shape: BoxShape.circle,
-                  ),
-                  child: Icon(
-                    icon,
-                    color: isUrgent ? AppTheme.primaryRed : Colors.grey[600],
-                    size: 18,
-                  ),
+                  width: 36, height: 36,
+                  decoration: BoxDecoration(color: isUrgent ? AppTheme.primaryRed.withOpacity(0.1) : Colors.grey[100], shape: BoxShape.circle),
+                  child: Icon(icon, color: isUrgent ? AppTheme.primaryRed : Colors.grey[600], size: 18),
                 ),
                 const SizedBox(width: 12),
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        title,
-                        style: const TextStyle(
-                          fontSize: 15,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
+                      Text(title, style: const TextStyle(fontSize: 14, fontWeight: FontWeight.bold)),
                       Row(
                         children: [
-                          Text(
-                            source,
-                            style: TextStyle(
-                              fontSize: 10,
-                              fontWeight: FontWeight.w600,
-                              color: AppTheme.primaryRed,
-                            ),
-                          ),
+                          Text(source, style: TextStyle(fontSize: 10, color: AppTheme.primaryRed, fontWeight: FontWeight.bold)),
                           const SizedBox(width: 8),
-                          Text(
-                            '•',
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey[400],
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Text(
-                            time,
-                            style: TextStyle(
-                              fontSize: 10,
-                              color: Colors.grey[500],
-                            ),
-                          ),
+                          Text('•  $time', style: TextStyle(fontSize: 10, color: Colors.grey[500])),
                         ],
                       ),
                     ],
                   ),
                 ),
-                if (isUrgent)
-                  Container(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 8,
-                      vertical: 4,
-                    ),
-                    decoration: BoxDecoration(
-                      color: AppTheme.primaryRed.withOpacity(0.1),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Text(
-                      'URGENT',
-                      style: TextStyle(
-                        fontSize: 8,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.primaryRed,
-                      ),
-                    ),
-                  ),
+                if (isUrgent) _UrgentPulse(),
               ],
             ),
             const SizedBox(height: 12),
-            Text(
-              description,
-              style: TextStyle(
-                fontSize: 13,
-                color: Colors.grey[700],
-                height: 1.4,
-              ),
-            ),
+            Text(description, style: TextStyle(fontSize: 13, color: Colors.grey[700], height: 1.4)),
           ],
         ),
       ),
     );
   }
+}
+
+class _UrgentPulse extends StatefulWidget {
+  @override State<_UrgentPulse> createState() => _UrgentPulseState();
+}
+class _UrgentPulseState extends State<_UrgentPulse> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1000))..repeat(reverse: true);
+  @override void dispose() { _c.dispose(); super.dispose(); }
+  @override
+  Widget build(BuildContext context) => FadeTransition(
+    opacity: Tween(begin: 0.5, end: 1.0).animate(_c),
+    child: Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(color: AppTheme.primaryRed.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
+      child: const Text('URGENT', style: TextStyle(fontSize: 8, fontWeight: FontWeight.bold, color: AppTheme.primaryRed)),
+    ),
+  );
 }

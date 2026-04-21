@@ -70,6 +70,8 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
                   _buildLanguageToggle(),
                   const SizedBox(height: 24),
                   _buildMainContent(alert),
+                  const SizedBox(height: 24),
+                  _buildAiVerificationReport(alert),
                   const SizedBox(height: 32),
                   _buildSafetyInstructions(safetyAsync),
                   const SizedBox(height: 32),
@@ -187,6 +189,148 @@ class _AlertDetailScreenState extends ConsumerState<AlertDetailScreen> {
           ),
         ),
       ],
+    );
+  }
+
+  Widget _buildAiVerificationReport(AlertModel alert) {
+    final statusColor = alert.trustStatus == 'verified' ? Colors.green : alert.trustStatus == 'fake' ? Colors.red : Colors.orange;
+    
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        border: Border.all(color: statusColor.withOpacity(0.2), width: 1.5),
+        boxShadow: [
+          BoxShadow(color: statusColor.withOpacity(0.05), blurRadius: 20, offset: const Offset(0, 10)),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                children: [
+                  Text('AI VERIFICATION REPORT', style: TextStyle(fontWeight: FontWeight.w900, fontSize: 12, letterSpacing: 1, color: Colors.black45)),
+                  if (alert.usingRealData) ...[
+                    const SizedBox(width: 8),
+                    _buildLiveBadge(),
+                  ],
+                ],
+              ),
+              _buildTrustStatusBadge(alert.trustStatus, statusColor),
+            ],
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              SizedBox(
+                width: 50,
+                height: 50,
+                child: CircularProgressIndicator(
+                  value: alert.trustScore / 100,
+                  backgroundColor: statusColor.withOpacity(0.1),
+                  color: statusColor,
+                  strokeWidth: 8,
+                ),
+              ),
+              const SizedBox(width: 20),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${alert.trustScore}% Confidence', style: TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: statusColor)),
+                    Text('Based on ${alert.sourcesChecked.length} sources', style: TextStyle(fontSize: 13, color: Colors.black54)),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 20),
+          const Divider(),
+          const SizedBox(height: 12),
+          Text('REPORT ANALYSIS', style: TextStyle(fontWeight: FontWeight.w800, fontSize: 11, color: statusColor, letterSpacing: 0.5)),
+          const SizedBox(height: 8),
+          Text(alert.verificationReason, style: const TextStyle(fontSize: 14, height: 1.5, color: Colors.black87)),
+          const SizedBox(height: 16),
+          if (alert.sourcesChecked.isNotEmpty)
+            Wrap(
+              spacing: 8,
+              children: alert.sourcesChecked.map((s) => Chip(
+                label: Text(s, style: const TextStyle(fontSize: 10, fontWeight: FontWeight.bold)),
+                backgroundColor: statusColor.withOpacity(0.05),
+                side: BorderSide.none,
+                padding: EdgeInsets.zero,
+                materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
+              )).toList(),
+            ),
+          const SizedBox(height: 20),
+          SizedBox(
+            width: double.infinity,
+            child: OutlinedButton.icon(
+              onPressed: () async {
+                ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Verification agents triggered...')));
+                try {
+                  await ref.read(alertRepositoryProvider).reverifyAlert(alert.id);
+                } catch (e) {
+                   // Silent fail for demo if backend not reachable
+                }
+              },
+              icon: const Icon(Icons.refresh_rounded, size: 18),
+              label: const Text('🔍 RE-VERIFY ALERT'),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: statusColor,
+                side: BorderSide(color: statusColor),
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildTrustStatusBadge(String status, Color color) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+      decoration: BoxDecoration(color: color, borderRadius: BorderRadius.circular(8)),
+      child: Text(status.toUpperCase(), style: const TextStyle(color: Colors.white, fontSize: 10, fontWeight: FontWeight.w900)),
+    );
+  }
+
+  Widget _buildLiveBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.red.shade700.withOpacity(0.1),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Colors.red.shade700.withOpacity(0.3)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: Colors.red.shade700,
+              shape: BoxShape.circle,
+            ),
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'LIVE NEWS',
+            style: TextStyle(
+              color: Colors.red.shade700,
+              fontSize: 9,
+              fontWeight: FontWeight.w900,
+              letterSpacing: 0.5,
+            ),
+          ),
+        ],
+      ),
     );
   }
 

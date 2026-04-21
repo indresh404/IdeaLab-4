@@ -16,11 +16,13 @@ import 'features/admin/presentation/admin_dashboard.dart';
 import 'features/admin/presentation/create_alert_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'core/services/notification_service.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 
 final notificationServiceProvider = Provider((ref) => NotificationService());
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await dotenv.load(fileName: ".env");
   
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,

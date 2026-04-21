@@ -60,12 +60,23 @@ void initState() {
   // If so, jump to Step 2 (Profile Info)
   WidgetsBinding.instance.addPostFrameCallback((_) {
     final user = ref.read(authStateProvider).value;
+    final profile = ref.read(userProfileProvider).value;
+    
     if (user != null && _currentStep == 0) {
-      setState(() {
-        _currentStep = 1;
-      });
-      if (_pageController.hasClients) {
-        _pageController.jumpToPage(1);
+      if (profile != null) {
+        // If profile exists but Telegram is not linked, go to Telegram step (index 2)
+        if (!profile.telegramLinked) {
+          setState(() => _currentStep = 2);
+          if (_pageController.hasClients) _pageController.jumpToPage(2);
+        } else {
+          // If profile and telegram both exist, go to success (index 3)
+          setState(() => _currentStep = 3);
+          if (_pageController.hasClients) _pageController.jumpToPage(3);
+        }
+      } else {
+        // Just authenticated, go to Profile step (index 1)
+        setState(() => _currentStep = 1);
+        if (_pageController.hasClients) _pageController.jumpToPage(1);
       }
     }
   });

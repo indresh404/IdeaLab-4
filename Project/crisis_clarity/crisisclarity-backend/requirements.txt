@@ -1,0 +1,13 @@
+fastapi==0.104.1
+uvicorn==0.24.0
+python-dotenv==1.0.0
+pydantic==2.5.2
+google-cloud-firestore==2.14.0
+firebase-admin==6.2.0
+python-telegram-bot==20.6
+httpx==0.25.1
+feedparser==6.0.10
+aiohttp==3.9.1
+beautifulsoup4==4.12.2
+lxml==4.9.3
+groq==0.4.2

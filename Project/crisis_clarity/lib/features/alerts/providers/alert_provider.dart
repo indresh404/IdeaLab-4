@@ -28,3 +28,13 @@ final hasRespondedProvider = FutureProvider.family<bool, String>((ref, alertId) 
   }
   return false;
 });
+
+final liveNewsProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  try {
+    final response = await ref.watch(alertRepositoryProvider).fetchLiveNews();
+    return response;
+  } catch (e) {
+    print('Error fetching live news: $e');
+    return [];
+  }
+});
