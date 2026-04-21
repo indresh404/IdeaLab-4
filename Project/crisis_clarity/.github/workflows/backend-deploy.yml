@@ -1,0 +1,73 @@
+name: CrisisClarity Backend CI/CD
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'crisisclarity-backend/**'
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Python 3.10
+      uses: actions/setup-python@v4
+      with:
+        python-version: "3.10"
+
+    - name: Install dependencies
+      run: |
+        cd crisisclarity-backend
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+
+    - name: Lint with flake8
+      run: |
+        pip install flake8
+        flake8 . --count --select=E9,F63,F7,F82 --show-source --statistics
+
+    - name: Security scan with pip-audit
+      run: |
+        pip install pip-audit
+        pip-audit crisisclarity-backend/requirements.txt
+
+  docker-build-push:
+    needs: build-and-test
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Log in to Docker Hub
+      uses: docker/login-action@v2
+      with:
+        username: ${{ secrets.DOCKER_USERNAME }}
+        password: ${{ secrets.DOCKER_PASSWORD }}
+
+    - name: Build and push Docker image
+      uses: docker/build-push-action@v4
+      with:
+        context: ./crisisclarity-backend
+        push: true
+        tags: ${{ secrets.DOCKER_USERNAME }}/crisisclarity-backend:latest,${{ secrets.DOCKER_USERNAME }}/crisisclarity-backend:${{ github.sha }}
+
+  deploy-to-k8s:
+    needs: docker-build-push
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v3
+
+    - name: Set up Kubeconfig
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > $HOME/.kube/config
+
+    - name: Deploy to K8s
+      run: |
+        kubectl apply -f DevOps/k8s/
+        kubectl set image deployment/crisisclarity-backend backend=${{ secrets.DOCKER_USERNAME }}/crisisclarity-backend:${{ github.sha }}
