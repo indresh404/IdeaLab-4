@@ -4,7 +4,7 @@ on:
   push:
     branches: [ main ]
     paths:
-      - 'crisisclarity-backend/**'
+      - 'Project/crisis_clarity/crisisclarity-backend/**'
   pull_request:
     branches: [ main ]
 
@@ -21,7 +21,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cd crisisclarity-backend
+        cd Project/crisis_clarity/crisisclarity-backend
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
@@ -33,7 +33,7 @@ jobs:
     - name: Security scan with pip-audit
       run: |
         pip install pip-audit
-        pip-audit crisisclarity-backend/requirements.txt
+        pip-audit Project/crisis_clarity/crisisclarity-backend/requirements.txt
 
   docker-build-push:
     needs: build-and-test
@@ -51,7 +51,7 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
       with:
-        context: ./crisisclarity-backend
+        context: ./Project/crisis_clarity/crisisclarity-backend
         push: true
         tags: ${{ secrets.DOCKER_USERNAME }}/crisisclarity-backend:latest,${{ secrets.DOCKER_USERNAME }}/crisisclarity-backend:${{ github.sha }}
 
@@ -69,5 +69,5 @@ jobs:
 
     - name: Deploy to K8s
       run: |
-        kubectl apply -f DevOps/k8s/
+        kubectl apply -f Project/crisis_clarity/DevOps/k8s/
         kubectl set image deployment/crisisclarity-backend backend=${{ secrets.DOCKER_USERNAME }}/crisisclarity-backend:${{ github.sha }}
