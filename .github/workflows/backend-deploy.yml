@@ -3,8 +3,6 @@ name: CrisisClarity Backend CI/CD
 on:
   push:
     branches: [ main ]
-    paths:
-      - 'Project/crisis_clarity/crisisclarity-backend/**'
   pull_request:
     branches: [ main ]
 
@@ -42,11 +40,16 @@ jobs:
     steps:
     - uses: actions/checkout@v3
 
+    - name: Debug secrets
+      run: |
+        echo "DOCKER USER LENGTH: ${#DOCKER_USERNAME}"
+        echo "DOCKER PASS LENGTH: ${#DOCKER_PASSWORD}"
+      env:
+        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
     - name: Log in to Docker Hub
-      uses: docker/login-action@v2
-      with:
-        username: ${{ secrets.DOCKER_USERNAME }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
+      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
