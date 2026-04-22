@@ -33,7 +33,7 @@ jobs:
     - name: Security scan with pip-audit
       run: |
         pip install pip-audit
-        pip-audit Project/crisis_clarity/crisisclarity-backend/requirements.txt
+        pip-audit -r Project/crisis_clarity/crisisclarity-backend/requirements.txt
 
   docker-build-push:
     needs: build-and-test

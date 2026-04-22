@@ -11,22 +11,27 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Copy requirements and install dependencies
 COPY requirements.txt .
-RUN pip install --no-cache-dir --user -r requirements.txt
+RUN pip install --no-cache-dir -r requirements.txt
 
 # Stage 2: Production stage
 FROM python:3.10-slim
 
 WORKDIR /app
 
+# Install runtime dependencies (curl for health check)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Create a non-root user for security
 RUN groupadd -r crisisuser && useradd -r -g crisisuser crisisuser
 
 # Copy installed packages from builder
-COPY --from=builder /root/.local /home/crisisuser/.local
+COPY --from=builder /usr/local/lib/python3.10/site-packages /usr/local/lib/python3.10/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
 COPY . .
 
 # Set environment variables
-ENV PATH=/home/crisisuser/.local/bin:$PATH
 ENV PYTHONUNBUFFERED=1
 ENV PORT=8000
 

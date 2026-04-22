@@ -456,14 +456,13 @@ def load_local_events(json_path: str = "news_data.json", force_reload: bool = Fa
 
 def get_local_active_alerts() -> List[Dict[str, Any]]:
     """Get active alerts from local storage (fallback mode)."""
-    global _local_active_batch
     events = load_local_events()
     return [e for e in events if e.get("batch_group") == _local_active_batch and e.get("isActive")]
 
 
 def rotate_local_batch() -> int:
     """Rotate local batch (fallback mode). Returns new batch number."""
-    global _local_active_batch, _local_events
+    global _local_active_batch
     
     # Force reload to pick up any new live_news.json data
     events = load_local_events(force_reload=True)
