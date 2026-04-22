@@ -37,19 +37,18 @@ jobs:
     needs: build-and-test
     if: github.event_name == 'push'
     runs-on: ubuntu-latest
+    environment: DOCKER
     steps:
     - uses: actions/checkout@v3
 
-    - name: Debug secrets
-      run: |
-        echo "DOCKER USER LENGTH: ${#DOCKER_USERNAME}"
-        echo "DOCKER PASS LENGTH: ${#DOCKER_PASSWORD}"
-      env:
-        DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
-        DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
-
     - name: Log in to Docker Hub
-      run: echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
+      run: |
+        if [ -z "${{ secrets.DOCKER_USERNAME }}" ]; then
+          echo "❌ ERROR: DOCKER_USERNAME is still empty."
+          echo "Please ensure the secret is added to the 'DOCKER' Environment in GitHub Settings."
+          exit 1
+        fi
+        echo "${{ secrets.DOCKER_PASSWORD }}" | docker login -u "${{ secrets.DOCKER_USERNAME }}" --password-stdin
 
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
