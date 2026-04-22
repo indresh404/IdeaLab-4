@@ -68,6 +68,19 @@ jobs:
         echo "${{ secrets.KUBECONFIG_DATA }}" | base64 -d > $HOME/.kube/config
 
     - name: Deploy to K8s
+      env:
+        GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+        TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
+        NEWS_API_KEY: ${{ secrets.NEWS_API_KEY }}
       run: |
-        kubectl apply -f Project/crisis_clarity/DevOps/k8s/
+        # Inject secrets into the YAML file
+        envsubst < Project/crisis_clarity/DevOps/k8s/config-secrets.yaml > config-secrets-final.yaml
+        
+        # Apply the redacted/final secret manifest
+        kubectl apply -f config-secrets-final.yaml
+        
+        # Apply the deployment manifest
+        kubectl apply -f Project/crisis_clarity/DevOps/k8s/backend-deployment.yaml
+        
+        # Update the image
         kubectl set image deployment/crisisclarity-backend backend=${{ secrets.DOCKER_USERNAME }}/crisisclarity-backend:${{ github.sha }}
