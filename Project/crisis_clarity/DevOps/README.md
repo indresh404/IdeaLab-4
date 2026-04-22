@@ -21,30 +21,26 @@ docker-compose up -d
 4. **Ollama**: Local LLM service container, enabling hybrid AI (Cloud Groq + Local Ollama).
 5. **Nginx**: Reverse proxy for load balancing and security.
 
-## ☸️ Phase 3: Scaling (Kubernetes)
-For production-level disaster response, the system is ready for Kubernetes (`DevOps/k8s/`).
-- **High Availability**: 3 replicas of the backend ensure that if one pod fails, the system stays online.
-- **Self-Healing**: Kubernetes Liveness and Readiness probes monitor the app health.
-- **Secrets Management**: Sensitive keys are abstracted into K8s Secrets.
-- **Auto-scaling**: Ready for Horizontal Pod Autoscaler (HPA) to handle traffic spikes during a real-world crisis.
+## ☸️ Phase 3: Local Orchestration (Minikube)
+For learning and local demonstrations, we use **Minikube** to simulate a production Kubernetes environment.
+- **Local Deployment**: We build images locally and load them into the Minikube cache using `minikube image load`.
+- **Manifests**: We use standard K8s Deployment and Service manifests located in `DevOps/k8s/`.
+- **Access**: Services are exposed using `minikube service crisisclarity-service` to provide a local URL for testing.
 
-## 🔁 Phase 4: Automation (CI/CD)
-The `.github/workflows/backend-deploy.yml` automates the entire lifecycle:
-1. **Lint & Test**: Checks code quality on every Pull Request.
-2. **Security Audit**: Uses `pip-audit` to scan for vulnerable dependencies before building.
-3. **Build & Push**: Automatically builds the Docker image and pushes it to Docker Hub.
-4. **Auto-Deploy**: Automatically updates the Kubernetes cluster with the new image on every push to `main`.
+## 🔁 Phase 4: Automation (Simplified CI/CD)
+The `.github/workflows/backend-deploy.yml` follows a high-stability "Clean Pipeline" approach:
+1. **Lint & Test**: Every push is checked with `flake8` for code quality.
+2. **Security Audit**: `pip-audit` scans for vulnerable dependencies to ensure the app is production-safe.
+3. **Build & Push**: The pipeline builds a tagged Docker image and pushes it to **Docker Hub** (`indresh404/crisisclarity-backend`).
+4. **Cloud Ready**: The Docker Hub image is now ready to be pulled by any cloud provider (Render, AWS, etc.) for final deployment.
 
-## 🔐 Phase 5: DevSecOps Hardening
-- **Image Scanning**: Recommended integration with Trivy for container vulnerability scanning.
-- **Secret Protection**: `.dockerignore` prevents local `.env` and `firebase-service-account.json` from ever entering the image.
-- **Network Isolation**: Docker Compose uses a private internal network for inter-service communication.
-
-## ☁️ Phase 6: Cloud Strategy
-The current setup is compatible with:
-- **AWS**: Deploy using EKS (Kubernetes) or ECS (Docker Compose).
-- **GCP**: Native support for GKE.
-- **Railway/Render**: Simple one-click deployment using the provided Dockerfile.
+## 🚀 How to Run the Kubernetes Demo Locally
+1. **Start Cluster**: `minikube start`
+2. **Build Image**: `docker build -t crisisclarity-backend ./Project/crisis_clarity/crisisclarity-backend`
+3. **Load to Cluster**: `minikube image load crisisclarity-backend`
+4. **Deploy**: `kubectl apply -f Project/crisis_clarity/DevOps/k8s/`
+5. **View App**: `minikube service crisisclarity-service`
 
 ---
-**Developer Note**: To launch locally for testing, ensure your `.env` is configured and run `docker-compose up`.
+**Developer Note**: This architecture prioritizes **security** (pip-audit) and **portability** (Docker Hub) before moving to full-scale cloud orchestration.
+
