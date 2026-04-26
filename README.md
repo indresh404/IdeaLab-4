@@ -526,4 +526,3 @@ IDEA Lab Project
 ## ⭐ If You Like This Project
 
 Give it a ⭐ on GitHub and support open-source disaster-tech!
-```
