@@ -150,6 +150,10 @@ app.add_middleware(
 
 # Prometheus Instrumentation
 Instrumentator().instrument(app).expose(app)
+ 
+@app.get("/")
+async def root():
+    return {"status": "online", "message": "CrisisClarity Master System Engine v2.0"}
 
 
 # Pipeline singleton
