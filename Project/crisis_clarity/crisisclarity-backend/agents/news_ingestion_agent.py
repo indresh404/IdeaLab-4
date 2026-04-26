@@ -9,9 +9,6 @@ from typing import List, Dict, Any, Optional
 import trafilatura
 from newsapi import NewsApiClient
 from groq import Groq
-from sklearn.feature_extraction.text import TfidfVectorizer
-from sklearn.cluster import DBSCAN
-import numpy as np
 
 from models.alert_models import CrisisEvent, Location
 from utils.logger import setup_logger
@@ -248,51 +245,41 @@ class NewsIngestionAgent:
         return [r for r in results if r]
 
     def _cluster_into_events(self, articles: List[Dict[str, Any]]) -> List[CrisisEvent]:
-        """Group similar articles into a single Event."""
+        """Simplified deduplication without heavy ML libraries."""
         if not articles:
             return []
             
-        # 1. Vectorize headlines + summaries
-        corpus = [f"{a['headline']} {a['summary']}" for a in articles]
-        if len(corpus) < 1: return []
-        
-        vectorizer = TfidfVectorizer(stop_words='english')
-        X = vectorizer.fit_transform(corpus)
-        
-        # 2. Cluster using DBSCAN
-        # eps is the threshold for similarity. 0.5 is a starting point.
-        db = DBSCAN(eps=0.5, min_samples=1, metric='cosine').fit(X)
-        labels = db.labels_
-        
-        clusters = {}
-        for idx, label in enumerate(labels):
-            if label not in clusters:
-                clusters[label] = []
-            clusters[label].append(articles[idx])
-            
+        # Simplified logic: Treat each unique-looking article as an event for now
+        # (Real clustering can be added later if hosted on a larger instance)
+        seen_titles = set()
         events = []
-        for label, cluster_articles in clusters.items():
-            # Aggregate cluster data
-            main_art = max(cluster_articles, key=lambda x: x['trust_score'])
+        
+        for art in articles:
+            title_clean = art['headline'].lower().strip()
+            if title_clean in seen_titles:
+                continue
+            seen_titles.add(title_clean)
             
-            # Simple aggregation
+            # Simple trust calculation
+            avg_trust = art['trust_score']
+            
             event = CrisisEvent(
-                event_id=f"event_{datetime.now().strftime('%Y%m%d%H%M')}_{label}",
-                title=main_art['headline'],
-                summary=main_art['summary'],
-                full_content=main_art['full_content'],
+                event_id=f"event_{datetime.now().strftime('%Y%m%d%H%M')}_{len(events)}",
+                title=art['headline'],
+                summary=art['summary'],
+                full_content=art['full_content'],
                 location=Location(
-                    country=str(main_art['location'].get('country', 'India')) if isinstance(main_art['location'].get('country'), (str, list)) else 'India',
-                    state=", ".join(main_art['location']['state']) if isinstance(main_art['location'].get('state'), list) else str(main_art['location'].get('state', 'Maharashtra')),
-                    city=", ".join(main_art['location']['city']) if isinstance(main_art['location'].get('city'), list) else str(main_art['location'].get('city', 'Mumbai'))
+                    country=str(art['location'].get('country', 'India')) if isinstance(art['location'].get('country'), (str, list)) else 'India',
+                    state=", ".join(art['location']['state']) if isinstance(art['location'].get('state'), list) else str(art['location'].get('state', 'Maharashtra')),
+                    city=", ".join(art['location']['city']) if isinstance(art['location'].get('city'), list) else str(art['location'].get('city', 'Mumbai'))
                 ),
-                disaster_type=main_art['disaster_type'],
-                severity=main_art['severity'],
-                trust_score=np.mean([a['trust_score'] for a in cluster_articles]),
-                trust_label=self._get_trust_label(np.mean([a['trust_score'] for a in cluster_articles])),
-                sources=[a['source_name'] for a in cluster_articles],
-                timestamp=main_art['published'],
-                keywords=list(set([kw for a in cluster_articles for kw in a.get('keywords', [])]))
+                disaster_type=art['disaster_type'],
+                severity=art['severity'],
+                trust_score=avg_trust,
+                trust_label=self._get_trust_label(avg_trust),
+                sources=[art['source_name']],
+                timestamp=art['published'],
+                keywords=art.get('keywords', [])
             )
             events.append(event)
             
