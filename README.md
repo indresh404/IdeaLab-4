@@ -1,7 +1,7 @@
 # 🚨 CrisisClarity: Real-Time Disaster Intelligence 
 
 <p align="center">
-  <img src="crisis_clarity/assets/icons/Logo.png" width="100%" />
+  <img src="crisis_clarity/assets/icons/Logo.png" width="25%" />
 </p>
 
 **CrisisClarity** is a full-stack, AI-powered disaster intelligence platform designed to deliver **verified, multilingual, and context-aware crisis information** in real time. Built specifically for high-risk regions like Mumbai and Maharashtra, it combines **Multi-Agent AI, FastAPI, Flutter, and Production-Grade DevOps** to transform fragmented disaster communication into a unified, trustworthy system.
