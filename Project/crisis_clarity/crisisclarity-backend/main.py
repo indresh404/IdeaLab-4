@@ -112,7 +112,7 @@ async def lifespan(app: FastAPI):
     # Initialize and start the 5-minute scheduler in background with a delay
     scheduler = get_scheduler()
     async def delayed_init():
-        await asyncio.sleep(15) # Wait for server to be stable
+        await asyncio.sleep(30) # Wait for server to be stable
         await scheduler.initialize()
         await scheduler.start()
         

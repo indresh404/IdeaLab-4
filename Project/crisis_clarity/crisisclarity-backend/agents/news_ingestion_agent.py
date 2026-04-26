@@ -123,7 +123,7 @@ class NewsIngestionAgent:
                 q=q,
                 language='en',
                 sort_by='publishedAt',
-                page_size=30
+                page_size=10
             )
             articles = []
             if response['status'] == 'ok':
@@ -144,7 +144,7 @@ class NewsIngestionAgent:
         try:
             # GDELT DOC API v2
             q = '(flood OR cyclone OR earthquake OR landslide OR fire OR "heavy rain") India'
-            url = f"https://api.gdeltproject.org/api/v2/doc/doc?query={q}&mode=artlist&format=json&maxrecords=30"
+            url = f"https://api.gdeltproject.org/api/v2/doc/doc?query={q}&mode=artlist&format=json&maxrecords=10"
             resp = requests.get(url, timeout=60) # Increased timeout to 60s for slow GDELT API
             articles = []
             if resp.status_code == 200:
@@ -186,7 +186,7 @@ class NewsIngestionAgent:
             return None
 
         # Process in batches or all at once if count is low
-        results = await asyncio.gather(*[enrich_one(art) for art in articles[:25]])
+        results = await asyncio.gather(*[enrich_one(art) for art in articles[:10]])
         return [r for r in results if r]
 
     async def _analyze_and_filter(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
