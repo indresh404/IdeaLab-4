@@ -94,19 +94,22 @@ async def lifespan(app: FastAPI):
     logger.info("🚀 CrisisClarity Master System Engine v2.0 starting...")
     logger.info(f"   Firebase: {'✅ Connected' if is_firestore_available() else '⚠️ Not configured (using local JSON)'}")
 
-    # Start Telegram Bot in background (wrapped to handle reload conflicts)
-    bot_task = None
-    try:
-        # Give a small delay to allow previous process to release the token
-        await asyncio.sleep(2)
-        bot_task = asyncio.create_task(run_bot_async())
-    except Exception as e:
-        logger.warning(f"⚠️ Telegram bot start skipped: {e}")
+    # Start Telegram Bot in background (DISABLED FOR DEPLOYMENT STABILITY)
+    # bot_task = None
+    # try:
+    #     await asyncio.sleep(2)
+    #     bot_task = asyncio.create_task(run_bot_async())
+    # except Exception as e:
+    #     logger.warning(f"⚠️ Telegram bot start skipped: {e}")
 
-    # Initialize and start the 5-minute scheduler in background (non-blocking)
+    # Initialize and start the 5-minute scheduler in background with a delay
     scheduler = get_scheduler()
-    asyncio.create_task(scheduler.initialize())
-    scheduler_task = asyncio.create_task(scheduler.start())
+    async def delayed_init():
+        await asyncio.sleep(15) # Wait for server to be stable
+        await scheduler.initialize()
+        await scheduler.start()
+        
+    asyncio.create_task(delayed_init())
 
     logger.info("✅ All systems online!")
     logger.info(f"   📊 Scheduler: batch rotation every {ROTATION_INTERVAL_SECONDS // 60} minutes")
@@ -117,18 +120,13 @@ async def lifespan(app: FastAPI):
 
     logger.info("🛑 CrisisClarity Backend shutting down")
     scheduler.stop()
-    scheduler_task.cancel()
-    if bot_task:
-        bot_task.cancel()
-    try:
-        if bot_task:
-            await bot_task
-    except asyncio.CancelledError:
-        pass
-    try:
-        await scheduler_task
-    except asyncio.CancelledError:
-        pass
+    # if bot_task:
+    #     bot_task.cancel()
+    # try:
+    #     if bot_task:
+    #         await bot_task
+    # except asyncio.CancelledError:
+    #     pass
 
 app = FastAPI(
     title="CrisisClarity Master System Engine",
