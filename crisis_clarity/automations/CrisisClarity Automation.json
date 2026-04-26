@@ -1,0 +1,310 @@
+{
+  "name": "CrisisClarity Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 1.5
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -512,
+        592
+      ],
+      "id": "28a2626a-0351-4f68-b890-d0b4bde1b210",
+      "name": "Every 1 minutes"
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/crisisclarity/databases/(default)/documents/alerts?key=AIzaSyAtAy4vEc0QX_y94LutAbuYB8mgTLdagFU",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -304,
+        512
+      ],
+      "id": "7ab2375f-a65a-437e-9218-820833f4034c",
+      "name": "Get Active Alerts from Firebase"
+    },
+    {
+      "parameters": {
+        "url": "https://firestore.googleapis.com/v1/projects/crisisclarity/databases/(default)/documents/users?key=AIzaSyAtAy4vEc0QX_y94LutAbuYB8mgTLdagFU",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        -304,
+        672
+      ],
+      "id": "d96e4334-e430-4eed-bd7a-8876666ea2e4",
+      "name": "Get All Users from Firebase"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse active alerts from Firestore\nconst response = $input.first().json;\nconst results = [];\n\nif (response.documents) {\n  for (const doc of response.documents) {\n    const fields = doc.fields;\n    \n    const nameParts = doc.name.split('/');\n    const event_id = nameParts[nameParts.length - 1];\n    \n    const isActive = fields.isActive?.booleanValue || false;\n    \n    if (isActive) {\n      const alert = {\n        event_id: event_id,\n        title: fields.title?.stringValue || \"\",\n        description: fields.description?.stringValue || \"\",\n        summary: fields.summary?.stringValue || \"\",\n        severity: fields.severity?.stringValue || \"medium\",\n        disasterType: fields.disasterType?.stringValue || \"unknown\",\n        trustScore: fields.trustScore?.integerValue || 0,\n        trustStatus: fields.trustStatus?.stringValue || \"UNVERIFIED\",\n        verificationReason: fields.verificationReason?.stringValue || \"\",\n        location: fields.location?.mapValue?.fields?.city?.stringValue || \"Unknown\",\n        recommended_action: fields.ai_analysis?.mapValue?.fields?.recommended_action?.stringValue || \"Stay safe and follow official instructions\"\n      };\n      \n      results.push({ json: alert });\n    }\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -112,
+        512
+      ],
+      "id": "552e2e91-564d-4a80-b226-2daaa94ce577",
+      "name": "Parse Active Alerts"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse all users from Firestore\nconst response = $input.first().json;\nconst results = [];\n\nif (response.documents) {\n  for (const doc of response.documents) {\n    const fields = doc.fields;\n    \n    const nameParts = doc.name.split('/');\n    const user_id = nameParts[nameParts.length - 1];\n    \n    const user = {\n      user_id: user_id,\n      chat_id: fields.telegramChatId?.stringValue || \"\", // ✅ FIXED\n      name: fields.name?.stringValue || \"User\",\n      phone: fields.phone?.stringValue || \"\",\n      preferred_language: fields.preferredLanguage?.stringValue || \"english\" // also fixed naming\n    };\n    \n    if (user.chat_id) {\n      results.push({ json: user });\n    }\n  }\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -112,
+        672
+      ],
+      "id": "5e3b5a36-0791-4ca3-809e-f6461b557c02",
+      "name": "Parse All Users",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        80,
+        592
+      ],
+      "id": "a672a512-3b01-4488-9f0f-afec9823a233",
+      "name": "Merge Alerts with Users",
+      "alwaysOutputData": true
+    },
+    {
+      "parameters": {
+        "jsCode": "// CROSS JOIN: Each alert × Each user\nconst alerts = $('Parse Active Alerts').all();\nconst users = $('Parse All Users').all();\n\nconst output = [];\n\nconsole.log('Alerts count:', alerts.length);\nconsole.log('Users count:', users.length);\n\nfor (const alertItem of alerts) {\n  const alert = alertItem.json;\n  \n  for (const userItem of users) {\n    const user = userItem.json;\n    \n    // Skip if user has no chat_id\n    if (!user.chat_id || user.chat_id === \"\") {\n      console.log('Skipping user with no chat_id:', user.user_id);\n      continue;\n    }\n    \n    // Normalize language\n    let lang = (user.preferred_language || 'english').toLowerCase();\n    if (lang === 'en') lang = 'english';\n    if (lang === 'hi') lang = 'hindi';\n    if (lang === 'mr') lang = 'marathi';\n    \n    output.push({\n      json: {\n        // Alert data\n        event_id: alert.event_id,\n        title: alert.title,\n        description: alert.description,\n        summary: alert.summary,\n        severity: alert.severity,\n        disasterType: alert.disasterType,\n        trustScore: alert.trustScore,\n        trustStatus: alert.trustStatus,\n        verificationReason: alert.verificationReason,\n        location: alert.location,\n        recommended_action: alert.recommended_action,\n        // User data (merged)\n        telegram_id: user.chat_id,\n        user_name: user.name,\n        language: lang\n      }\n    });\n  }\n}\n\nconsole.log('Output items:', output.length);\nreturn output;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        256,
+        592
+      ],
+      "id": "fe7ceeca-4cb8-4ebd-8565-1ac1e969b957",
+      "name": "Prepare Messages for All Users"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            },
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a disaster alert system. Summarize alerts urgently in {{$json.language}} language. Keep it short, actionable, and clear.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Create a {{$json.language}} alert message for user {{$json.user_name}}:\\n\\nDisaster: {{$json.disasterType}}\\nLocation: {{$json.location}}\\nSeverity: {{$json.severity}}\\nTrust Score: {{$json.trustScore}}/100 ({{$json.trustStatus}})\\n\\nDetails: {{$json.description}}\\n\\nAction: {{$json.recommended_action}}\\n\\nMake 2-3 short, urgent lines for Telegram. Add emoji.\"\n    }\n  ],\n  \"temperature\": 0.7,\n  \"max_tokens\": 300\n}",
+        "options": {
+          "timeout": 10000
+        }
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        448,
+        592
+      ],
+      "id": "92a084d5-13e2-408a-98b6-9627b412fe81",
+      "name": "Groq AI - Generate Message"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Parse Groq response and prepare for Telegram\nconst groqResponse = $input.first().json;\nconst originalData = $('Prepare Messages for All Users').first().json;\n\nlet alertText = \"\";\n\nif (groqResponse.choices && groqResponse.choices[0]) {\n  alertText = groqResponse.choices[0].message.content;\n} else {\n  alertText = `🚨 ${originalData.disasterType.toUpperCase()} ALERT\\n📍 ${originalData.location}\\n⚠️ ${originalData.summary}\\n🔍 Trust Score: ${originalData.trustScore}/100 (${originalData.trustStatus})`;\n}\n\nconst finalMessage = `${alertText}\\n\\n---\\n🔍 Verification: ${originalData.verificationReason}\\n\\n✅ Tap 'Understood' if you got this\\n❓ Tap 'Not Clear' if confused\\n🔄 Tap 'Re-Verify' for latest info`;\n\nreturn [{\n  json: {\n    telegram_id: originalData.telegram_id,\n    language: originalData.language,\n    event_id: originalData.event_id,\n    message: finalMessage,\n    trustScore: originalData.trustScore,\n    trustStatus: originalData.trustStatus\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        640,
+        592
+      ],
+      "id": "b9ebd750-89e2-4925-8ec3-c888b84141ba",
+      "name": "Format Telegram Message"
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json[\"telegram_id\"]}}",
+        "text": "={{$json[\"message\"]}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        832,
+        592
+      ],
+      "id": "47a52b36-de21-40e4-9ab8-4e68acfec601",
+      "name": "Send Alert to All Users",
+      "webhookId": "c5531e2d-6a80-43f1-8f58-7a974dbb0dd5",
+      "credentials": {
+        "telegramApi": {
+          "id": "LsZmmKTPGYeB4wy3",
+          "name": "Telegram account"
+        }
+      }
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Every 1-2 minutes": {
+      "main": [
+        [
+          {
+            "node": "Get Active Alerts from Firebase",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get All Users from Firebase",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get Active Alerts from Firebase": {
+      "main": [
+        [
+          {
+            "node": "Parse Active Alerts",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Get All Users from Firebase": {
+      "main": [
+        [
+          {
+            "node": "Parse All Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Active Alerts": {
+      "main": [
+        [
+          {
+            "node": "Merge Alerts with Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse All Users": {
+      "main": [
+        [
+          {
+            "node": "Merge Alerts with Users",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Merge Alerts with Users": {
+      "main": [
+        [
+          {
+            "node": "Prepare Messages for All Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Prepare Messages for All Users": {
+      "main": [
+        [
+          {
+            "node": "Groq AI - Generate Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Groq AI - Generate Message": {
+      "main": [
+        [
+          {
+            "node": "Format Telegram Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Format Telegram Message": {
+      "main": [
+        [
+          {
+            "node": "Send Alert to All Users",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "b16c6199-d4ea-4b19-964a-c51e9b74ed95",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8801935a693866882c7fc6f2682b7e73e2e462f916e2a5f53479db13ac6fab40"
+  },
+  "id": "jWMbXU7XD7kCaYBX",
+  "tags": []
+}

@@ -1,0 +1,279 @@
+{
+  "name": "CrisisClarity Automation",
+  "nodes": [
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1mpGLaRX991uLxZyF7Bcfdf08xQ1XC6uc7BTzYgGWRek",
+          "mode": "list",
+          "cachedResultName": "disaster_news",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1mpGLaRX991uLxZyF7Bcfdf08xQ1XC6uc7BTzYgGWRek/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "gid=0",
+          "mode": "list",
+          "cachedResultName": "Sheet1",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1mpGLaRX991uLxZyF7Bcfdf08xQ1XC6uc7BTzYgGWRek/edit#gid=0"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        176
+      ],
+      "id": "e7df7dcc-4e8a-45dd-b935-53fcaed7e42c",
+      "name": "Get row(s) in sheet",
+      "credentials": {
+        "googleApi": {
+          "id": "9uDhnZMw7rY5wzCu",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "authentication": "serviceAccount",
+        "documentId": {
+          "__rl": true,
+          "value": "1mpGLaRX991uLxZyF7Bcfdf08xQ1XC6uc7BTzYgGWRek",
+          "mode": "list",
+          "cachedResultName": "disaster_news",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1mpGLaRX991uLxZyF7Bcfdf08xQ1XC6uc7BTzYgGWRek/edit?usp=drivesdk"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 901966628,
+          "mode": "list",
+          "cachedResultName": "Sheet2",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/1mpGLaRX991uLxZyF7Bcfdf08xQ1XC6uc7BTzYgGWRek/edit#gid=901966628"
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a9663fee-9726-4d82-b5bf-6f1df8684d16",
+      "name": "Get row(s) in sheet1",
+      "credentials": {
+        "googleApi": {
+          "id": "9uDhnZMw7rY5wzCu",
+          "name": "Google Sheets account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "advanced": true,
+        "mergeByFields": {
+          "values": [
+            {
+              "field1": "location",
+              "field2": "location"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [
+        256,
+        96
+      ],
+      "id": "e95bdc10-bd75-450a-b5f9-45f4fd423420",
+      "name": "Merge"
+    },
+    {
+      "parameters": {
+        "chatId": "={{$json[\"telegram_id\"]}}",
+        "text": "={{$json[\"summary\"]}}",
+        "additionalFields": {}
+      },
+      "type": "n8n-nodes-base.telegram",
+      "typeVersion": 1.2,
+      "position": [
+        1088,
+        96
+      ],
+      "id": "9a326978-3ebc-44b8-bda8-f30415eedf03",
+      "name": "Send a text message1",
+      "webhookId": "85efa29d-1b54-43fe-84b8-c9a02378193d",
+      "credentials": {
+        "telegramApi": {
+          "id": "LsZmmKTPGYeB4wy3",
+          "name": "Telegram account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get all items\nconst items = $input.all();\n\n// Pass through original data and add a flag for Groq\nconst results = [];\n\nfor (const item of items) {\n  results.push({\n    json: {\n      originalData: item.json,  // Save ALL original data\n      telegram_id: item.json.telegram_id,\n      name: item.json.name,\n      title: item.json.title,\n      location: item.json.location,\n      severity: item.json.severity,\n      time: item.json.time,\n      description: item.json.description,\n      language: item.json.language\n    }\n  });\n}\n\nreturn results;"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        464,
+        96
+      ],
+      "id": "d55422d3-fb44-48b0-abf4-82fd7ad5162f",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Authorization",
+              "value": "Bearer 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"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"You are a disaster alert system. Summarize alerts briefly in user's language.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"Summarize this alert in {{$json[\"language\"]}} language:\\n\\nTitle: {{$json[\"title\"]}}\\nLocation: {{$json[\"location\"]}}\\nSeverity: {{$json[\"severity\"]}}\\nTime: {{$json[\"time\"]}}\\n\\nDescription: {{$json[\"description\"]}}\\n\\nMake 2-3 short, urgent lines.\"\n    }\n  ]\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        672,
+        96
+      ],
+      "id": "5c67973b-28b3-4c04-b27d-107280eaf162",
+      "name": "HTTP Request"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Get the HTTP response from Groq\nconst groqResponse = $input.first().json;\n\n// Reach back to the first Code node's output to get original data\nconst originalData = $('Code in JavaScript').first().json;\n\n// Return combined data for Telegram\nreturn [{\n  json: {\n    telegram_id: originalData.telegram_id,\n    name: originalData.name,\n    summary: groqResponse.choices[0].message.content\n  }\n}];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        880,
+        96
+      ],
+      "id": "87ac25a2-b391-48e5-a4e7-a98e8666b290",
+      "name": "Code in JavaScript1"
+    },
+    {
+      "parameters": {},
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -240,
+        96
+      ],
+      "id": "1d17352c-d900-41d5-9023-53b4246acba2",
+      "name": "When clicking ‘Execute workflow’"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Get row(s) in sheet": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 1
+          }
+        ]
+      ]
+    },
+    "Get row(s) in sheet1": {
+      "main": [
+        [
+          {
+            "node": "Merge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Merge": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript1": {
+      "main": [
+        [
+          {
+            "node": "Send a text message1",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "When clicking ‘Execute workflow’": {
+      "main": [
+        [
+          {
+            "node": "Get row(s) in sheet1",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Get row(s) in sheet",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "bf3fd1a2-4203-4d2b-a873-c73585ff44d9",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "8801935a693866882c7fc6f2682b7e73e2e462f916e2a5f53479db13ac6fab40"
+  },
+  "id": "jWMbXU7XD7kCaYBX",
+  "tags": []
+}
