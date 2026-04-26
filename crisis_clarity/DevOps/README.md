@@ -36,9 +36,9 @@ The `.github/workflows/backend-deploy.yml` follows a high-stability "Clean Pipel
 
 ## 🚀 How to Run the Kubernetes Demo Locally
 1. **Start Cluster**: `minikube start`
-2. **Build Image**: `docker build -t crisisclarity-backend ./Project/crisis_clarity/crisisclarity-backend`
+2. **Build Image**: `docker build -t crisisclarity-backend ./crisis_clarity/crisisclarity-backend`
 3. **Load to Cluster**: `minikube image load crisisclarity-backend`
-4. **Deploy**: `kubectl apply -f Project/crisis_clarity/DevOps/k8s/`
+4. **Deploy**: `kubectl apply -f crisis_clarity/DevOps/k8s/`
 5. **View App**: `minikube service crisisclarity-service`
 
 ---

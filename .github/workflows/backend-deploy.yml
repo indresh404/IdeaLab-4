@@ -19,7 +19,7 @@ jobs:
 
     - name: Install dependencies
       run: |
-        cd Project/crisis_clarity/crisisclarity-backend
+        cd crisis_clarity/crisisclarity-backend
         python -m pip install --upgrade pip
         pip install -r requirements.txt
 
@@ -31,7 +31,7 @@ jobs:
     - name: Security scan with pip-audit
       run: |
         pip install pip-audit
-        pip-audit -r Project/crisis_clarity/crisisclarity-backend/requirements.txt
+        pip-audit -r crisis_clarity/crisisclarity-backend/requirements.txt
 
   docker-build-push:
     name: Build & Push to Docker Hub
@@ -53,7 +53,7 @@ jobs:
     - name: Build and push Docker image
       uses: docker/build-push-action@v4
       with:
-        context: ./Project/crisis_clarity/crisisclarity-backend
+        context: ./crisis_clarity/crisisclarity-backend
         push: true
         tags: ${{ secrets.DOCKER_USERNAME }}/crisisclarity-backend:latest,${{ secrets.DOCKER_USERNAME }}/crisisclarity-backend:${{ github.sha }}
 
