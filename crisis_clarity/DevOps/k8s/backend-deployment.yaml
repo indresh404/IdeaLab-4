@@ -1,0 +1,58 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: crisisclarity-backend
+  labels:
+    app: crisisclarity-backend
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      app: crisisclarity-backend
+  template:
+    metadata:
+      labels:
+        app: crisisclarity-backend
+    spec:
+      containers:
+      - name: backend
+        image: indresh404/crisisclarity-backend:latest
+        ports:
+        - containerPort: 8000
+        resources:
+          limits:
+            cpu: "1000m"
+            memory: "1Gi"
+          requests:
+            cpu: "500m"
+            memory: "512Mi"
+        envFrom:
+        - configMapRef:
+            name: backend-config
+        - secretRef:
+            name: backend-secrets
+        livenessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 15
+          periodSeconds: 20
+        readinessProbe:
+          httpGet:
+            path: /health
+            port: 8000
+          initialDelaySeconds: 5
+          periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: crisisclarity-backend-service
+spec:
+  selector:
+    app: crisisclarity-backend
+  ports:
+    - protocol: TCP
+      port: 80
+      targetPort: 8000
+  type: ClusterIP
