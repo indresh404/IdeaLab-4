@@ -1,9 +1,11 @@
-Here is the final, polished, production-level `README.md` file, now updated with your complete system architecture, DevOps pipeline, and all technical details.
+Here is the updated `README.md` with the project structure updated to include your `Docs` folder, `Logo.png` icon shown first, and file tree properly formatted:
 
 ```markdown
 # 🚨 CrisisClarity: Real-Time Disaster Intelligence OS
 
 **CrisisClarity** is a full-stack, AI-powered disaster intelligence platform designed to deliver **verified, multilingual, and context-aware crisis information** in real time. Built specifically for high-risk regions like Mumbai and Maharashtra, it combines **Multi-Agent AI, FastAPI, Flutter, and Production-Grade DevOps** to transform fragmented disaster communication into a unified, trustworthy system.
+
+![Logo](crisis_clarity/assets/icons/Logo.png)
 
 ---
 
@@ -432,22 +434,12 @@ python bot/telegram_bot.py
 
 ## 🧠 Academic Relevance
 
-### Course: Agentic AI (993114711)
-
-| Course Outcome | Module | Implementation |
-|----------------|--------|----------------|
-| CO1 — Introduction | Module I | BDI architecture mapping to 4 agents |
-| CO2 — Core Components | Module II | VerificationAgent (environment modeling, POMDPs) |
-| CO3 — LLM Tool-Use | Module III | ScoringAgent (reward model via trust weights) |
-| CO4 — Autonomous Agents | Module IV | DataCollectionAgent (planner-executor pattern) |
-| CO5 — Multi-Agent Systems | Module V | AgentPipeline (cooperative coordination) |
-| CO6 — Ethics & Safety | Module VI | ClassificationAgent (XAI, HITL feedback) |
-
-### Additional Subjects:
+### Subjects:
 - **Software Engineering:** SDLC, Agile methodology
 - **Full Stack Development:** API design + Mobile app
 - **Cloud & DevOps:** Docker, Kubernetes, CI/CD pipelines
 - **Design Thinking:** User-centered multilingual design
+- **Agentic AI:** BDI Agents etc
 
 ---
 
@@ -477,35 +469,41 @@ python bot/telegram_bot.py
 
 ```
 crisisclarity/
-├── crisisclarity-backend/          # FastAPI backend
-│   ├── main.py                     # Entry point
-│   ├── agents/                     # 4-agent pipeline
+├── crisis_clarity/assets/icons/
+│   └── Logo.png                     # App logo
+├── crisisclarity-backend/           # FastAPI backend
+│   ├── main.py                      # Entry point
+│   ├── agents/                      # 4-agent pipeline
 │   │   ├── data_collection_agent.py
 │   │   ├── verification_agent.py
 │   │   ├── scoring_agent.py
 │   │   └── classification_agent.py
-│   ├── models/                     # Pydantic schemas
-│   ├── utils/                      # RSS, fallback engine
+│   ├── models/                      # Pydantic schemas
+│   ├── utils/                       # RSS, fallback engine
 │   └── requirements.txt
-├── crisis_clarity/                 # Flutter app
+├── crisis_clarity/                  # Flutter app
 │   ├── lib/
 │   │   ├── screens/
 │   │   │   ├── home_screen.dart
 │   │   │   ├── ai_chat_screen.dart
 │   │   │   └── admin_dashboard.dart
-│   │   ├── providers/              # Riverpod state
-│   │   └── services/               # API calls
-│   └── .env                        # Backend URL
+│   │   ├── providers/               # Riverpod state
+│   │   └── services/                # API calls
+│   └── .env                         # Backend URL
+├── Docs/                            # Project documentation
+│   ├── Indresh [33] (CrisisClarity) - [PPT].pptx
+│   ├── MONTHLY REPORT.pdf
+│   └── PROJECT REPORT.pdf
 ├── DevOps/
 │   ├── Dockerfile
 │   ├── docker-compose.yml
-│   ├── k8s/                        # Kubernetes manifests
-│   └── prometheus/                 # Monitoring configs
+│   ├── k8s/                         # Kubernetes manifests
+│   └── prometheus/                  # Monitoring configs
 ├── bot/
-│   └── telegram_bot.py             # Async Telegram bot
+│   └── telegram_bot.py              # Async Telegram bot
 ├── .github/workflows/
-│   └── backend-deploy.yml          # CI/CD pipeline
-└── news_data.json                  # Local fallback scenarios
+│   └── backend-deploy.yml           # CI/CD pipeline
+└── news_data.json                   # Local fallback scenarios
 ```
 
 ---
@@ -514,7 +512,7 @@ crisisclarity/
 
 **Indresh Kumar**
 B.E. Computer Engineering (Semester IV)
-IDEA Lab Project 
+IDEA Lab Project
 
 ---
 
@@ -527,8 +525,8 @@ IDEA Lab Project
 
 ---
 
+
 ## ⭐ If You Like This Project
 
 Give it a ⭐ on GitHub and support open-source disaster-tech!
-
----
+```
