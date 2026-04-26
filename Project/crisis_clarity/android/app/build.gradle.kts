@@ -2,15 +2,17 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("dev.flutter.flutter-gradle-plugin")
+    id("com.google.gms.google-services")
 }
 
 android {
-    namespace = "com.example.crisis_clarity"
+    namespace = "com.example.crisisclarity"
     compileSdk = 36
+    ndkVersion = "28.2.13676358"
 
     defaultConfig {
-        applicationId = "com.example.crisis_clarity"
-        minSdk = flutter.minSdkVersion   // IMPORTANT (desugaring needs 21+)
+        applicationId = "com.example.crisisclarity"
+        minSdk = flutter.minSdkVersion
         targetSdk = 36
         versionCode = 1
         versionName = "1.0"

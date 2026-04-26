@@ -197,9 +197,10 @@ def detect_query_type(query: str) -> dict:
     if any(w in ql for w in safety_words):
         return {"type": "safety", "disaster_type": None, "location": None}
 
-    # Check for greetings
-    greetings = ["hi", "hello", "hey", "what can you do", "who are you"]
-    if any(ql.startswith(g) or ql == g for g in greetings):
+    # Check for greetings (only if the query is short to avoid catching long questions)
+    indic_greetings = ["namaste", "namaskar", "नमस्ते", "नमस्कार", "shukriya", "dhanyawad"]
+    greetings = ["hi", "hello", "hey", "what can you do", "who are you"] + indic_greetings
+    if len(ql.split()) <= 4 and any(g in ql for g in greetings):
         return {"type": "general", "disaster_type": None, "location": None}
 
     # Default: factual question

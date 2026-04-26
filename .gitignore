@@ -1,6 +1,7 @@
 # Environment files
 .env
 .env.*
+! .env.example
 *.env
 
 # Python
@@ -24,3 +25,15 @@ Thumbs.db
 firebase-service-account.json
 live_news.json
 Documents/
+*.json
+!news_data.json
+!pubspec.json
+!package.json
+!composer.json
+
+# Firebase secrets
+*-adminsdk-*.json
+google-services.json
+GoogleService-Info.plist
+firebase-debug.log
+.firebaserc

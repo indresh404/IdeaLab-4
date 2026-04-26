@@ -44,3 +44,4 @@ The `.github/workflows/backend-deploy.yml` follows a high-stability "Clean Pipel
 ---
 **Developer Note**: This architecture prioritizes **security** (pip-audit) and **portability** (Docker Hub) before moving to full-scale cloud orchestration.
 
+Promethus + Grafana

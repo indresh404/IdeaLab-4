@@ -129,6 +129,7 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen>
   late final AnimationController _headerCtrl;
 
   static const _suggestions = [
+    _QSuggestion('📊 Analyze Situation',   'Generate a concise situational summary and safety advice for this event.'),
     _QSuggestion('🏠 Nearest Shelters',   'Where are the nearest emergency shelters?'),
     _QSuggestion('🆘 Safety Tips',        'What safety precautions should I take?'),
     _QSuggestion('📞 Emergency Contacts', 'What emergency numbers should I call?'),
@@ -159,17 +160,13 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen>
       setState(() {
         _messages.add(_ChatMessage(
           text: widget.post != null
-              ? 'Hi! I\'m your Crisis AI. I\'ve analyzed the report for **${widget.post!.title}**.\n\nGenerating a situation summary for you...'
+              ? 'Hi! I\'m your Crisis AI Assistant 👋\n\nI see you\'re interested in **${widget.post!.title}**.\n\nWould you like me to analyze the situation and provide safety advice?'
               : 'Hi! I\'m your Crisis AI Assistant 👋\n\nI\'m here to help you stay safe. Ask me about alerts, shelters, emergency contacts, or evacuation routes.',
           isUser: false,
           timestamp: DateTime.now(),
         ));
       });
       _scrollToBottom();
-      
-      if (widget.post != null) {
-        _triggerSummary();
-      }
     });
   }
 
@@ -237,11 +234,19 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen>
       setState(() {
         _isTyping = false;
         _messages.add(_ChatMessage(
-          text: '❌ Local AI is initializing. Please wait a moment...',
+          text: '❌ Crisis AI is still warming up. This can take a minute on first load. Please try sending a message in a few seconds.',
           isUser: false,
           timestamp: DateTime.now(),
         ));
       });
+      // Try again once after 10 seconds if it's the first failure
+      if (widget.post != null && _messages.length <= 2) {
+        Future.delayed(const Duration(seconds: 10), () {
+          if (mounted && _messages.last.text.contains('warming up')) {
+            _triggerSummary();
+          }
+        });
+      }
     }
     _scrollToBottom();
   }
@@ -369,7 +374,7 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen>
         _isTyping = false;
         _inputEnabled = true;
         _messages.add(_ChatMessage(
-          text: '⚠️ Local AI timed out. Please ensure Ollama is running and try again.',
+          text: '⚠️ Crisis AI is currently unresponsive. Please check if the backend is running or try again in a moment.',
           isUser: false,
           timestamp: DateTime.now(),
         ));
@@ -582,7 +587,13 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen>
       itemCount: _suggestions.length,
       separatorBuilder: (_, __) => const SizedBox(width: 8),
       itemBuilder: (_, i) => GestureDetector(
-        onTap: () => _sendMessage(_suggestions[i].query),
+        onTap: () {
+          if (_suggestions[i].label.contains('Analyze Situation')) {
+            _triggerSummary();
+          } else {
+            _sendMessage(_suggestions[i].query);
+          }
+        },
         child: Container(
           padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 9),
           decoration: BoxDecoration(

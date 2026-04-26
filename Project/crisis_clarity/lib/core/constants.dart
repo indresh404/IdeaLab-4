@@ -4,7 +4,8 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 class AppConstants {
   // Backend API URL loaded from .env
   static String get baseUrl {
-    return dotenv.env['API_BASE_URL'] ?? 'http://192.168.1.26:8000';
+    // This pulls the URL from your .env file at the root of the project
+    return dotenv.env['API_BASE_URL'] ?? 'http://localhost:8000';
   }
 
   // API Endpoints

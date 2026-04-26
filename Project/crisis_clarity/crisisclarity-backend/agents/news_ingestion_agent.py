@@ -2,6 +2,7 @@ import asyncio
 import logging
 import json
 import requests
+import os
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 
@@ -147,7 +148,7 @@ class NewsIngestionAgent:
             # GDELT DOC API v2
             q = '(flood OR cyclone OR earthquake OR landslide OR fire OR "heavy rain") India'
             url = f"https://api.gdeltproject.org/api/v2/doc/doc?query={q}&mode=artlist&format=json&maxrecords=30"
-            resp = requests.get(url, timeout=30) # Increased timeout
+            resp = requests.get(url, timeout=60) # Increased timeout to 60s for slow GDELT API
             articles = []
             if resp.status_code == 200:
                 data = resp.json()
@@ -217,18 +218,25 @@ class NewsIngestionAgent:
             """
             
             try:
-                async with self.semaphore:
-                    chat_completion = await asyncio.to_thread(
-                        self.groq_client.chat.completions.create,
-                        messages=[{"role": "user", "content": prompt}],
+                # Use Groq for production-grade classification
+                client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
+                
+                def _call():
+                    completion = client.chat.completions.create(
                         model="llama-3.1-8b-instant",
-                        response_format={"type": "json_object"}
+                        messages=[{"role": "user", "content": prompt}],
+                        response_format={"type": "json_object"},
+                        temperature=0.1,
                     )
-                    analysis = json.loads(chat_completion.choices[0].message.content)
-                    if analysis.get("is_india_disaster"):
-                        art.update(analysis)
-                        return art
+                    return json.loads(completion.choices[0].message.content)
+
+                results_json = await asyncio.to_thread(_call)
+                return results_json.get("results", [])
+                
             except Exception as e:
+                logger.error(f"❌ Groq Classification Error: {e}")
+                return []
+
                 if "rate_limit_exceeded" in str(e).lower():
                     logger.warning(f"⚠️ Groq Rate Limit hit, skipping article: {art['headline']}")
                 else:
@@ -274,9 +282,9 @@ class NewsIngestionAgent:
                 summary=main_art['summary'],
                 full_content=main_art['full_content'],
                 location=Location(
-                    country=main_art['location'].get('country') or 'India',
-                    state=main_art['location'].get('state') or 'Maharashtra',
-                    city=main_art['location'].get('city') or 'Mumbai'
+                    country=str(main_art['location'].get('country', 'India')) if isinstance(main_art['location'].get('country'), (str, list)) else 'India',
+                    state=", ".join(main_art['location']['state']) if isinstance(main_art['location'].get('state'), list) else str(main_art['location'].get('state', 'Maharashtra')),
+                    city=", ".join(main_art['location']['city']) if isinstance(main_art['location'].get('city'), list) else str(main_art['location'].get('city', 'Mumbai'))
                 ),
                 disaster_type=main_art['disaster_type'],
                 severity=main_art['severity'],

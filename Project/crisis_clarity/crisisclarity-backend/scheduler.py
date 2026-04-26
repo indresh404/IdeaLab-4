@@ -63,6 +63,8 @@ class CrisisScheduler:
             news_api_key=os.getenv("NEWS_API_KEY", "")
         )
         self.is_running: bool = False
+        self.is_initialized: bool = False
+        self.init_progress: str = "pending"
         self.last_rotation: Optional[datetime] = None
         self.last_news_fetch: Optional[datetime] = None
         self.use_firestore: bool = False
@@ -78,6 +80,7 @@ class CrisisScheduler:
         4. Activate first batch
         """
         logger.info("🚀 Initializing CrisisClarity Scheduler...")
+        self.init_progress = "starting"
 
         self.use_firestore = is_firestore_available()
 
@@ -110,11 +113,17 @@ class CrisisScheduler:
 
         logger.info(f"  📊 Total batches: {self.total_batches}")
         logger.info(f"  📊 Current batch: {self.current_batch}")
-
+        
+        self.init_progress = "rotating"
         # Activate first batch immediately
         await self._rotate()
+        
+        self.init_progress = "fetching_news"
         # Trigger first news fetch
         await self._fetch_and_save_news()
+
+        self.is_initialized = True
+        self.init_progress = "complete"
 
     async def start(self):
         """Start all background loops."""
@@ -271,8 +280,8 @@ class CrisisScheduler:
                 return
 
             if self.use_firestore:
-                from firebase.firestore_client import get_db
-                db = get_db()
+                from firebase.firestore_client import get_firestore_client
+                db = get_firestore_client()
                 batch = db.batch()
                 
                 news_ref = db.collection("news_feed")
@@ -308,6 +317,8 @@ class CrisisScheduler:
             "rotation_interval_minutes": ROTATION_INTERVAL_SECONDS // 60,
             "news_fetch_interval_minutes": NEWS_FETCH_INTERVAL_SECONDS // 60,
             "mode": "firestore" if self.use_firestore else "local_json",
+            "is_initialized": self.is_initialized,
+            "init_progress": self.init_progress,
         }
 
 

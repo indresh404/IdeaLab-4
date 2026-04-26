@@ -1,50 +1,26 @@
 [
     {
-        "event_id": "event_202604220831_0",
-        "title": "Assam chief secretary holds review after Guwahati cloudburst-like rainfall",
-        "summary": "Heavy rainfall leads to widespread waterlogging and disruption of normal life in Assam.",
-        "full_content": "The heavy downpour led to widespread waterlogging, disruption of normal life, and considerable inconvenience to the public. Notably, this rainfall intensity exceeded the 120 mm recorded over 24 hours on 31 May 2025.\nThe India Meteorological Department, Assam State Disaster Management Authority, and District Disaster Management Authority have been directed to issue timely and advance weather forecasts and advisories. These measures aim to enable residents to take necessary precautions and plan their movement, supported by advance traffic advisories from the city police.\nThe National Highways Authority of India has been instructed to ensure that concessionaires remain available round-the-clock for clearing cross-drainage culverts, operating pumps, and removing silt deposits following waterlogging. Key stretches identified include Tetelia\u2013Jalukbari, Excel Care\u2013Gorchuk, Koinadhara\u2013Tripura Road, and Jorabat\u2013Khanapara.\nThe Guwahati Municipal Corporation, Guwahati Metropolitan Development Authority, and the Water Resources Department have been directed to maintain 24\u00d77 operational readiness to address waterlogging in Anil Nagar, Navin Nagar, Lachit Nagar, Rukmini Nagar and other vulnerable areas.\nThe Public Works Department (Roads) has been tasked with ensuring thorough desiltation of drains and preventing recurrence of waterlogging, particularly in areas such as GS Road near Bhangagarh. Strict directions have been issued for immediate, time-bound dredging, desiltation, and cleaning of all drainage channels. Any lapses in preparedness, maintenance, or response will invite accountability.\nIn connection with the Maligaon incident involving the loss of a life, the District Commissioner has been directed to institute a magisterial enquiry to determine responsibility. Incidents resulting in loss of life due to preventable causes are unacceptable and will be dealt with firmly.\nGiven the likelihood of continued heavy rainfall this season, residents in landslide-prone hilly areas are being alerted to remain vigilant and take necessary precautions to avoid loss of life and property.\nAll departments and agencies are operating round-the-clock in close coordination to address waterlogging, expedite drainage, and restore normalcy. The situation has improved in several areas, while targeted interventions are ongoing in the remaining affected locations.\nNotably, waterlogging near Jorabat was cleared expeditiously due to prior dredging and drainage improvements towards Byrnihat, underscoring the importance of sustained desiltation efforts.\nIn view of past incidents, including landslides last year, the District Administration has been directed to maintain heightened vigilance in vulnerable areas and ensure coordinated response, mitigation, and relief measures.\nAs per the forecast by the India Meteorological Department, occasional rain and thunderstorms are likely over the coming days. All agencies have been directed to remain on high alert.",
+        "event_id": "event_202604252303_0",
+        "title": "Heatwave alert: IMD warns of 45 degrees in north, central India over next 3 days",
+        "summary": "Heatwave alert in north and central India for 3 days, temperatures to reach 45\u00b0C",
+        "full_content": "Stay updated with the latest - Click here to follow us on Instagram\nWritten by Paramita Datta\nAn intense heatwave is likely to grip the plains of northwest and central India over the next 3\u20134 days, according to the India Meteorological Department (IMD) under the Ministry of Earth Sciences.\nMaximum temperatures across northwest, central, and parts of peninsular India \u2014 including Rajasthan, Uttar Pradesh, Madhya Pradesh, Chhattisgarh, Telangana, Andhra Pradesh, north interior Karnataka, and parts of Gujarat and Odisha \u2014 have remained significantly high. The highest temperature recorded was 44.5\u00b0C in Sri Ganganagar (Rajasthan), the IMD said.\nIn eastern India, including Bihar, Jharkhand, and West Bengal, maximum temperatures have ranged between 36\u00b0C and 40\u00b0C. Meanwhile, relatively lower temperatures have been recorded in the Western Himalayan region, parts of northeast India, hill stations, and some coastal areas.\nDaytime temperatures were above normal by more than 5\u00b0C across large parts of Jammu & Kashmir and in isolated pockets of northwest, northeast, and eastern India. A rise of 3\u00b0C to 5\u00b0C above normal was recorded across much of northwest India \u2014 including Punjab, Haryana, Chandigarh, Delhi, and west Uttar Pradesh \u2014 as well as parts of central, eastern, and peninsular India.\nSome areas of central India and the southern peninsula saw temperatures 1.6\u00b0C to 3\u00b0C above normal, while coastal and island regions largely remained within 1.5\u00b0C of the seasonal average.\nDelhi: The national capital recorded a maximum temperature above 42\u00b0C and a minimum around 35\u00b0C. A yellow alert for heatwave conditions has been issued for April 25.\nKolkata: Temperatures are expected to rise over the next two days across West Bengal, followed by a likely drop of 3\u20134\u00b0C over the subsequent five days.\nMumbai: The city is expected to see maximum and minimum temperatures of around 38\u00b0C and 24\u00b0C, respectively, over the next 48 hours.\nChennai: Maximum temperatures have hovered around 37\u00b0C, with minimum temperatures near 33\u00b0C. The IMD has forecast partly cloudy skies and light rainfall over the next week, which may bring some relief. Temperatures are expected to stay near 37\u00b0C (max) and 28\u00b0C (min).\nThunderstorms accompanied by gusty winds are expected over Sub-Himalayan West Bengal and Sikkim on April 25\u201326, Gangetic West Bengal and Jharkhand from April 26\u201328, and Bihar on April 26\u201327. A hailstorm is also likely in Jharkhand on April 26, the IMD said.\nThe northeast is expected to witness scattered to fairly widespread rainfall, along with thunderstorms and lightning throughout the week, with isolated instances of heavy to very heavy rainfall.\nTemperatures in many parts of the country are currently in the 40\u201342\u00b0C range, which is typical for this time of year. However, the IMD has warned of a further rise over the next few days, with heatwave conditions likely in isolated pockets of northwest and central India, where temperatures may touch 44\u201345\u00b0C.\nDust storms accompanied by thunderstorms are also likely over western Rajasthan on April 25, and in adjoining regions between April 26 and 28, due to a weak western disturbance. Light rainfall is expected in some areas during this period.\n(The author is an intern with The Indian Express)\nStay updated with the latest - Click here to follow us on Instagram",
         "location": {
             "country": "India",
-            "state": "Assam",
-            "city": "Guwahati"
+            "state": "Maharashtra",
+            "city": "Mumbai"
         },
-        "disaster_type": "flood",
+        "disaster_type": "heatwave",
         "severity": "HIGH",
         "trust_score": 0.85,
         "trust_label": "VERIFIED",
         "sources": [
-            "The Times of India"
+            "The Indian Express"
         ],
-        "timestamp": "2026-04-20T18:43:23Z",
+        "timestamp": "2026-04-24T16:08:29Z",
         "keywords": [
-            "waterlogging",
-            "rainfall"
-        ]
-    },
-    {
-        "event_id": "event_202604220831_1",
-        "title": "Flash floods kill woman in Guwahati; city paralysed by heavy rains",
-        "summary": "Flash floods kill woman in Guwahati due to heavy rains, severely disrupting life.",
-        "full_content": "Flash floods kill woman in Guwahati; city paralysed by heavy rains\nA woman lost her life as flash floods and severe waterlogging wreaked havoc across Guwahati following incessant rainfall since Sunday night, severely disrupting normal life across the city.\nThe deceased has been identified as Payal Nath, a woman in her 30s from Dharapur. She reportedly slipped into an open roadside drain in the Maligaon Chariali area around 9:30 pm on Sunday while navigating waterlogged streets. Swept away by strong currents, her body was recovered by SDRF personnel early Monday, nearly 100 metres from the spot. She was taken to Pandu FRU, where doctors declared her brought dead.\nThere is a report of landslide at Kamakhya Hills on Sunday night, but there was no casualty.\nRelentless downpour triggered flash floods and widespread inundation, bringing the city to a standstill. Several low-lying areas, including Hatigaon, Anil Nagar, Beltola, Survey, Lokhra, Sijubari, Nabin Nagar and Rajgarh Link Road, were among the worst affected. Water entered homes, while knee-deep flooding turned streets into virtual lakes overnight.\nRoad connectivity was severely hit as key stretches went under water, leading to massive traffic congestion, particularly in Lokhra and adjoining areas. Commuters were stranded on roads and flyovers, with many forced to wade through floodwaters to reach their destinations. The situation continued well into Monday morning, crippling movement in major parts of the city.\nThe city recorded 125.5 mm of rainfall on Sunday night.\nAccording to the Assam State Disaster Management Authority (ASDMA), waterlogging was reported in several locations across Kamrup Metro district, including Rukminigaon, Ghoramara, Juripar, Panjabari, Hatigaon, Sijubari, Satgaon, Jatia, Sawkuchi, Anil Nagar, Nabin Nagar, Rajgarh, Sorumotoria, Bormotoria, Narengi, Maligaon and Boragaon.\nEmergency helplines were activated, and rescue teams along with boats were deployed by Fire and Emergency Services and SDRF following distress calls. Around 50 people have been evacuated from affected areas so far.\nAuthorities said the water level has started receding in some parts. As many as 22 major pumps and 35 portable pumps have been pressed into service in areas such as Rukminigaon, Tarun Nagar, Anil Nagar, Lachit Nagar and Bharalu Mukh to drain out accumulated water.\nThe India Meteorological Department (IMD) had earlier forecast moderate to heavy rainfall accompanied by thunderstorms, lightning and gusty winds across Assam and Meghalaya between April 17 and 19. It had also warned of isolated heavy to very heavy rainfall. Data released on April 19 confirmed very heavy rainfall ranging between 12 and 20 cm at isolated places across Assam.\nIn view of the situation, the Kamrup Metropolitan district administration ordered closure of all educational institutions, both government and private, under the Guwahati Municipal Corporation area on Monday.\nResidents expressed frustration over recurring flooding. A resident of Nabin Nagar said the area gets submerged even after brief spells of rain, forcing people to remain stranded for hours.\nAuthorities continue to monitor the situation in low-lying areas and have urged citizens to remain cautious.\nLeave a Reply",
-        "location": {
-            "country": "India",
-            "state": "Maharashtra",
-            "city": "Guwahati"
-        },
-        "disaster_type": "flood",
-        "severity": "HIGH",
-        "trust_score": 0.95,
-        "trust_label": "VERIFIED",
-        "sources": [
-            "Syllad.com"
-        ],
-        "timestamp": "2026-04-20T16:36:15Z",
-        "keywords": [
-            "disrupting life",
-            "heavy rains",
-            "Guwahati",
-            "flash floods"
+            "temperature",
+            "IMD",
+            "heatwave"
         ]
     }
 ]

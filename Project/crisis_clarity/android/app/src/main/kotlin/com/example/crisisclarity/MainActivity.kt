@@ -1,4 +1,4 @@
-package com.example.crisis_clarity
+package com.example.crisisclarity
 
 import io.flutter.embedding.android.FlutterActivity
 

@@ -25,9 +25,10 @@ Endpoints:
 
 import os
 import json
-import ollama
-from langdetect import detect
+import logging
 import asyncio
+from groq import Groq
+from langdetect import detect
 from typing import Optional, Dict, Any, List
 from contextlib import asynccontextmanager
 
@@ -58,8 +59,11 @@ from agents.rss_feed_fetcher import RSSFeedFetcher
 from agents.rss_cache import rss_cache
 from bot.telegram_bot import run_bot_async
 from agents.news_ingestion_agent import NewsIngestionAgent
+from utils.sarvam_utils import sarvam
 from scheduler import get_scheduler, ROTATION_INTERVAL_SECONDS
 from system_prompt import build_system_prompt, build_filter_prompt, detect_query_type
+from prometheus_fastapi_instrumentator import Instrumentator
+
 
 load_dotenv()
 logger = setup_logger("fastapi_main")
@@ -73,6 +77,11 @@ class VerifyAlertRequest(BaseModel):
 class ChatRequest(BaseModel):
     message: str
     context: Optional[str] = None
+
+class TTSRequest(BaseModel):
+    text: str
+    language: str = "en-IN"
+    speaker: str = "aditya"
     user_location: Optional[str] = None
 
 class TelegramSendRequest(BaseModel):
@@ -94,9 +103,9 @@ async def lifespan(app: FastAPI):
     except Exception as e:
         logger.warning(f"⚠️ Telegram bot start skipped: {e}")
 
-    # Initialize and start the 5-minute scheduler
+    # Initialize and start the 5-minute scheduler in background (non-blocking)
     scheduler = get_scheduler()
-    await scheduler.initialize()
+    asyncio.create_task(scheduler.initialize())
     scheduler_task = asyncio.create_task(scheduler.start())
 
     logger.info("✅ All systems online!")
@@ -140,6 +149,10 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# Prometheus Instrumentation
+Instrumentator().instrument(app).expose(app)
+
 
 # Pipeline singleton
 pipeline = AgentPipeline()
@@ -244,234 +257,154 @@ async def system_status():
 @app.post("/chat")
 async def chat_with_ai(request: ChatRequest):
     """
-    Context-aware AI chatbot for crisis assistance.
-
-    The chatbot ONLY answers from currently active alerts.
-    It detects query type (filter, location, factual, safety, general)
-    and responds with structured information.
-
-    HARD RULES:
-    - Never invents news not in active dataset
-    - Never answers outside active dataset
-    - Never mixes expired events
-    - Never hallucinates casualties or numbers
+    Context-aware AI chatbot with Sarvam Multilingual Intelligence Layer.
+    Flow: User Input -> Sarvam Translate (En) -> Groq LLM (En) -> Sarvam Translate (Target) -> Output
     """
     logger.info(f"📨 POST /chat: message='{request.message[:50]}...'")
 
     try:
-        # Step 1: Get currently active data (Official Alerts + Live News)
+        # Step 1: Detect and Normalize Input using Sarvam
+        english_input = sarvam.translate(request.message, source_lang="auto", target_lang="en-IN")
+        
+        # Enhanced detection for language routing
+        msg_lower = request.message.lower()
+        import re as _re
+        
+        # 1. Start with langdetect
+        try:
+            detected_code = detect(request.message)
+        except:
+            detected_code = "hi"
+
+        # 2. Refine based on script and keywords
+        if _re.search(r'[\u0900-\u097F]', request.message):
+            source_lang_code = "mr-IN" if detected_code == "mr" else "hi-IN"
+        else:
+            # Check for Marathi keywords in Latin script
+            marathi_kw = {"kasa", "ahes", "kuth", "madat", "kara", "ahe", "kuthe", "bhau", "namaskar"}
+            words = set(_re.findall(r'\b\w+\b', msg_lower))
+            
+            if words.intersection(marathi_kw):
+                source_lang_code = "mr-IN"
+            elif detected_code == "en":
+                # Check if it's actually Hinglish (common Hindi words in Latin)
+                hindi_latin_kw = {"koi", "kya", "batao", "hai", "kaise", "kaha", "kab", "achha", "theek"}
+                if words.intersection(hindi_latin_kw):
+                    source_lang_code = "hi-IN"
+                else:
+                    source_lang_code = "en-IN"
+            else:
+                source_lang_code = "hi-IN"
+
+        logger.info(f"🌐 Normalized Input: {english_input} (Detected: {detected_code} -> Target: {source_lang_code})")
+
+
+        # Step 2: Get active data context
         if is_firestore_available():
             active_alerts = get_active_alerts_full()
             news_feed = get_news_feed()
         else:
             active_alerts = get_local_active_alerts()
-            news_feed = get_news_feed() # Now correctly falls back to live_news.json
+            news_feed = get_news_feed()
 
-        if not active_alerts:
-            return {
-                "response": "There are no active alerts at the moment. The system is monitoring for new events. Please check back shortly.",
-                "query_type": "no_data",
-                "active_count": 0,
-            }
-
-        # Step 2: Detect query type (rule-based, fast)
-        query_info = detect_query_type(request.message)
-
-        # LITE MODE: Fast path for greetings/generic info to save tokens
-        if query_info["type"] == "general":
-            return {
-                "response": "Hello! I am CrisisClarity AI, your real-time disaster intelligence assistant. I monitor news and official alerts for Mumbai and Maharashtra. How can I help you today? (e.g., 'Is it safe in Dadar?' or 'Any fire news?')",
-                "query_type": "general",
-                "active_count": len(active_alerts),
-            }
-
-        # Step 3: If it's a filter query, try to answer directly
-        if query_info["type"] == "filter" and query_info["disaster_type"]:
-            matching = [
-                a for a in active_alerts
-                if query_info["disaster_type"].lower() in a.get("disaster_type", a.get("disasterType", "")).lower()
-            ]
-            if matching:
-                # Build a quick response listing matching events
-                response_parts = [f"📢 Found **{len(matching)}** active alert(s) related to **{query_info['disaster_type']}**:\n"]
-                for i, a in enumerate(matching, 1):
-                    loc = a.get("location", {})
-                    city = loc.get("city", "Unknown") if isinstance(loc, dict) else str(loc)
-                    sev = a.get("severity", "unknown").upper()
-                    response_parts.append(
-                        f"**{i}. {a.get('title', 'No title')}**\n"
-                        f"📍 {city} | 🔴 {sev} | "
-                        f"Severity: {a.get('severity_score', 0):.0%} | "
-                        f"Confidence: {a.get('confidence_score', 0):.0%}\n"
-                        f"📝 {a.get('summary', '')}\n"
-                        f"⚠️ {a.get('ai_analysis', {}).get('recommended_action', 'Follow official guidelines')}\n"
-                    )
-
-                return {
-                    "response": "\n".join(response_parts),
-                    "query_type": "filter",
-                    "filter": query_info["disaster_type"],
-                    "matching_count": len(matching),
-                    "active_count": len(active_alerts),
-                }
-
-        # Step 4: If it's a location query, filter and respond
-        if query_info["type"] == "location" and query_info["location"]:
-            loc_query = query_info["location"].lower()
-            matching = []
-            for a in active_alerts:
-                loc = a.get("location", {})
-                loc_str = ""
-                if isinstance(loc, dict):
-                    loc_str = f"{loc.get('city', '')} {loc.get('state', '')}".lower()
-                zones = " ".join(a.get("affectedZones", [])).lower()
-                if loc_query in loc_str or loc_query in zones:
-                    matching.append(a)
-
-            # Sort by severity
-            matching.sort(key=lambda x: x.get("severity_score", 0), reverse=True)
-
-            if matching:
-                response_parts = [f"📍 **{len(matching)} active alert(s) in {query_info['location'].title()}:**\n"]
-                for i, a in enumerate(matching[:5], 1):
-                    sev = a.get("severity", "unknown").upper()
-                    response_parts.append(
-                        f"**{i}. {a.get('title', 'No title')}**\n"
-                        f"🔴 {sev} (Score: {a.get('severity_score', 0):.0%}) | "
-                        f"Trust: {a.get('trust_label', 'Unknown')}\n"
-                        f"📝 {a.get('summary', '')}\n"
-                        f"⚠️ {a.get('ai_analysis', {}).get('recommended_action', '')}\n"
-                    )
-                return {
-                    "response": "\n".join(response_parts),
-                    "query_type": "location",
-                    "location": query_info["location"],
-                    "matching_count": len(matching),
-                    "active_count": len(active_alerts),
-                }
-
-        # Step 5: For factual/safety queries, use Local Ollama LLM
-        ollama_response = await _ask_ollama_with_context(
-            request.message, active_alerts[:5], news_feed[:5], request.context
-        )
+        # Step 3: Call LLM Intelligence Layer (English internally)
+        # Optimized dataset to prevent 429 Rate Limits
+        trimmed_alerts = []
+        for a in active_alerts[:5]:
+            trimmed_alerts.append({
+                "id": a.get("event_id", "alert"),
+                "title": a.get("title", ""),
+                "severity": a.get("severity", ""),
+                "summary": a.get("summary", "")[:200] + "..." if len(a.get("summary", "")) > 200 else a.get("summary", "")
+            })
         
-        # Ensure compatibility with existing frontend while providing requested format
+        trimmed_news = []
+        for n in news_feed[:5]:
+            trimmed_news.append({
+                "title": n.get("title", ""),
+                "summary": n.get("summary", "")[:150] + "..." if len(n.get("summary", "")) > 150 else n.get("summary", "")
+            })
+
+        dataset_json = json.dumps({
+            "official_alerts": trimmed_alerts,
+            "live_news": trimmed_news
+        }, default=str)
+
+        system_prompt = f"""
+SYSTEM: CrisisClarity Multilingual Intelligence Layer
+
+You are an AI agent operating inside the CrisisClarity system.
+Your job is to process user input, generate safe and actionable responses based on ACTIVE_DATASET.
+
+========================
+ACTIVE_DATASET
+========================
+{dataset_json}
+
+========================
+CORE RESPONSIBILITIES
+========================
+1. Generate response ONLY in English internally.
+2. Keep responses: Clear, Short, Actionable, Crisis-aware.
+3. If situation involves danger: Give immediate steps (evacuate, avoid area, contact help).
+4. Do not fabricate facts.
+
+OUTPUT FORMAT (STRICT JSON):
+{{
+  "response": "final response in English",
+  "confidence": "high|medium|low"
+}}
+"""
+
+        # Step 4: Call LLM Intelligence Layer (English internally) - High Speed & Reliability
+        llm_response = await _call_groq_engine(system_prompt, english_input)
+        
+        # Point 3: Safe Fallback if Groq fails or hits rate limit
+        if not llm_response:
+            english_ai_response = "I am currently experiencing high traffic from too many requests. Please try again in a few minutes or check the alerts dashboard for live updates."
+        else:
+            english_ai_response = llm_response.get("response", "I'm sorry, I'm having trouble analyzing the current situation.")
+
+        # Step 5: Translate Back to User Language using Sarvam (FORCE MULTILINGUAL)
+        if source_lang_code == "en-IN" and not any(k in msg_lower for k in ["hindi", "marathi", "batao", "sang"]):
+            final_translated_response = english_ai_response
+        else:
+            final_translated_response = sarvam.translate(english_ai_response, source_lang="en-IN", target_lang=source_lang_code)
+
         return {
-            "response": ollama_response.get("response_text", ""),
-            "language": ollama_response.get("language", "auto-detected"),
-            "response_text": ollama_response.get("response_text", ""),
-            "referenced_events": ollama_response.get("referenced_events", []),
-            "confidence": ollama_response.get("confidence", 0.0),
-            "query_type": query_info["type"],
-            "active_count": len(active_alerts),
+            "detected_language": source_lang_code,
+            "normalized_input": english_input,
+            "response": final_translated_response,
+            "confidence": llm_response.get("confidence", "medium") if llm_response else "low",
+            "active_count": len(active_alerts)
         }
 
     except Exception as e:
         logger.error(f"❌ Chat failed: {e}")
-        # Fallback: return a summary of active alerts
         return {
-            "response": f"I'm having trouble processing your request right now. There are currently active alerts in the system. Please try again or check the alerts section.",
-            "query_type": "error",
-            "error": str(e),
+            "response": "Crisis AI is temporarily unavailable. Please try again in a moment.",
+            "error": str(e)
         }
 
-
-async def _ask_ollama_with_context(
-    message: str,
-    active_alerts: List[Dict[str, Any]],
-    news_feed: List[Dict[str, Any]],
-    extra_context: Optional[str],
-) -> Dict[str, Any]:
+@app.post("/text-to-speech")
+async def text_to_speech(request: TTSRequest):
     """
-    Hybrid AI engine: Groq (English) + Ollama (Hindi/Marathi).
-    Ollama URL is configurable via OLLAMA_BASE_URL for ngrok deployment.
-    Falls back to simulated response if API takes > 5s.
+    Generate speech using Sarvam AI.
+    Returns base64 encoded audio.
     """
+    logger.info(f"🔊 POST /text-to-speech: text='{request.text[:30]}...' lang={request.language}")
+    audio_b64 = sarvam.text_to_speech(request.text, lang=request.language, speaker=request.speaker)
+    if not audio_b64:
+        raise HTTPException(status_code=500, detail="Failed to generate speech")
+    return {"audio_content": audio_b64}
+
+async def _call_groq_engine(system_prompt: str, message: str) -> Optional[Dict[str, Any]]:
+    """Internal Groq call with explicit rate limit handling and 10s timeout."""
+    client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
     try:
-        # Robust Language Detection
-        detected_lang = "English"
-        msg_lower = message.lower()
-        
-        # 1. Check for Devanagari script characters (Hindi/Marathi)
-        import re
-        if re.search(r'[\u0900-\u097F]', message):
-            # Try to distinguish Marathi vs Hindi based on specific characters if needed, 
-            # but default to Hindi for general Devanagari if langdetect fails
-            try:
-                lang_code = detect(message)
-                if lang_code == 'mr': detected_lang = "Marathi"
-                else: detected_lang = "Hindi"
-            except:
-                detected_lang = "Hindi"
-        else:
-            # 2. Check for common transliterated Hindi/Marathi words (Hinglish/Marathish)
-            hindi_keywords = {"kya", "kaise", "kaha", "kab", "hai", "mein", "aur", "madad", "bachao", "karo"}
-            marathi_keywords = {"kasa", "ahes", "kuth", "madat", "kara", "ahe", "kuthe"}
-            
-            words = set(re.findall(r'\b\w+\b', msg_lower))
-            if words.intersection(marathi_keywords):
-                detected_lang = "Marathi"
-            elif words.intersection(hindi_keywords):
-                detected_lang = "Hindi"
-            else:
-                # Fallback to langdetect for other cases
-                try:
-                    lang_code = detect(message)
-                    lang_map = {"en": "English", "hi": "Hindi", "mr": "Marathi"}
-                    detected_lang = lang_map.get(lang_code, "English")
-                except:
-                    detected_lang = "English"
-
-        # Prepare dataset context
-        dataset = {
-            "official_alerts": active_alerts,
-            "live_news": news_feed
-        }
-
-        system_prompt = f"""
-You are CrisisClarity Voice AI Assistant.
-
-CRITICAL LANGUAGE RULE:
-- Detected language: {detected_lang}
-- You MUST respond ENTIRELY in {detected_lang}.
-- If Hindi: respond fully in Hindi (Devanagari script).
-- If Marathi: respond fully in Marathi (Devanagari script).
-- If English: respond in English.
-- NEVER mix languages. NEVER respond in English when Hindi or Marathi is detected.
-
-Answer ONLY from the ACTIVE_FIREBASE_NEWS_DATASET below.
-Never hallucinate. Keep it concise for TTS voice output.
-
-DATASET:
-{json.dumps(dataset, indent=2)}
-
-OUTPUT FORMAT (JSON):
-{{
-  "language": "{detected_lang}",
-  "response_text": "your response here in {detected_lang}",
-  "referenced_events": ["list of IDs if applicable"],
-  "confidence": 0.95
-}}
-"""
-
-        # Route ALL traffic to Groq for extreme speed (Llama-3.3-70b supports Hindi/Marathi fluently)
-        logger.info(f"⚡ {detected_lang} detected → routing to Groq for maximum speed")
-        return await _call_groq_for_fast_response(system_prompt, message, active_alerts, news_feed, detected_lang)
-
-    except Exception as e:
-        logger.error(f"❌ AI engine failed: {e}")
-        return _generate_simulated_response(message, active_alerts, news_feed, "English")
-
-
-async def _call_groq_for_fast_response(system_prompt, message, alerts, news, lang):
-    """Fast Groq API for ALL responses (English/Hindi/Marathi)."""
-    try:
-        from groq import Groq
-        client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
-
-        async def _call():
+        def _call():
             completion = client.chat.completions.create(
-                model="llama-3.3-70b-versatile",
+                model="llama-3.1-8b-instant",
                 messages=[
                     {"role": "system", "content": system_prompt},
                     {"role": "user", "content": message}
@@ -479,50 +412,23 @@ async def _call_groq_for_fast_response(system_prompt, message, alerts, news, lan
                 response_format={"type": "json_object"},
                 temperature=0.2,
                 max_tokens=512,
+                timeout=10.0 # Point 7: Add request timeout
             )
             return json.loads(completion.choices[0].message.content)
 
-        return await asyncio.wait_for(_call(), timeout=5.0)
-    except asyncio.TimeoutError:
-        logger.warning("⏱️ Groq timed out → simulated fallback")
-        return _generate_simulated_response(message, alerts, news, lang)
+        return await asyncio.to_thread(_call)
     except Exception as e:
-        logger.error(f"❌ Groq error: {e}")
-        return _generate_simulated_response(message, alerts, news, lang)
+        # Point 2: Add Groq Rate Limit Handling
+        if "rate_limit" in str(e).lower() or "429" in str(e):
+            logger.warning("🚨 Groq Rate Limit hit (429) — triggering fallback")
+            return None
+        logger.error(f"❌ Groq Error: {e}")
+        return None
 
 
-async def _call_ollama_for_indic(system_prompt, message, alerts, news, lang):
-    """Ollama for Hindi/Marathi via configurable OLLAMA_BASE_URL (supports ngrok)."""
-    import httpx
-    ollama_url = os.getenv("OLLAMA_BASE_URL", "http://localhost:11434")
 
-    try:
-        async def _call():
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                resp = await client.post(
-                    f"{ollama_url}/api/chat",
-                    json={
-                        "model": "llama3.1:8b",
-                        "messages": [
-                            {"role": "system", "content": system_prompt},
-                            {"role": "user", "content": message}
-                        ],
-                        "format": "json",
-                        "stream": False,
-                        "options": {"temperature": 0.3, "num_predict": 512}
-                    }
-                )
-                data = resp.json()
-                content = data.get("message", {}).get("content", "{}")
-                return json.loads(content)
 
-        return await asyncio.wait_for(_call(), timeout=10.0)
-    except asyncio.TimeoutError:
-        logger.warning(f"⏱️ Ollama timed out for {lang} → simulated fallback")
-        return _generate_simulated_response(message, alerts, news, lang)
-    except Exception as e:
-        logger.error(f"❌ Ollama ({lang}) error: {e}")
-        return _generate_simulated_response(message, alerts, news, lang)
+# Unified Production LLM engine: Using Groq + Sarvam for Multilingual Intelligence Layer.
 
 def _generate_simulated_response(message: str, alerts: List[dict], news: List[dict], lang: str) -> Dict[str, Any]:
     """Rule-based simulated response that looks real for demo purposes."""
@@ -550,7 +456,7 @@ def _generate_simulated_response(message: str, alerts: List[dict], news: List[di
         if lang == "Hindi":
             resp = f"🚨 अलर्ट: {loc} में {title}। हमारी सलाह: {action}। सुरक्षित रहें।"
         elif lang == "Marathi":
-            resp = f"🚨 अलर्ट: {loc} मध्ये {title}। आमचा सल्ला: {action}। सुरक्षित रहा।"
+            resp = f"🚨 अलर्ट: {loc} मध्ये {title}। आमचा सल्ला: {action}। सुरक्षित रहा。"
         else:
             resp = f"🚨 System Alert for {loc}: {title}. Recommended Action: {action}. Please stay vigilant."
             
@@ -757,7 +663,6 @@ async def get_crisis_intelligence():
     """Mumbai/Maharashtra Crisis Intelligence Engine."""
     logger.info("📨 GET /crisis-intelligence")
     try:
-        # Instead of running pipeline (slow), get stored news from repo
         events = get_news_feed()
         return {
             "status": "success",
@@ -766,6 +671,79 @@ async def get_crisis_intelligence():
         }
     except Exception as e:
         logger.error(f"Crisis Intelligence failed: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+# ─── STREAMING ENDPOINTS (Real-time demo simulation) ─────────────────────────
+
+import random as _random
+from datetime import datetime as _dt, timedelta as _td
+
+_news_counter = 0
+_alert_counter = 0
+_alert_order: list = []
+
+_TIME_LABELS = ["Just now", "1 min ago", "2 min ago", "3 min ago", "5 min ago",
+                "8 min ago", "12 min ago", "15 min ago", "20 min ago"]
+
+
+@app.get("/news-stream")
+async def news_stream():
+    """Returns the next news item in rotation. Poll every 15-30s for real-time effect."""
+    global _news_counter
+    try:
+        all_news = load_local_events("news_data.json")
+        if not all_news:
+            return {"status": "empty", "item": None}
+
+        idx = _news_counter % len(all_news)
+        _news_counter += 1
+        item = dict(all_news[idx])
+
+        # Inject fresh timestamp
+        item["timeAgo"] = _TIME_LABELS[min(idx, len(_TIME_LABELS) - 1)]
+        item["stream_index"] = _news_counter
+        item["fetched_at"] = _dt.now().isoformat()
+
+        # Randomize scores slightly for dynamism
+        base_sev = item.get("severity_score", 0.5)
+        base_conf = item.get("confidence_score", 0.7)
+        item["severity_score"] = round(min(1.0, max(0.1, base_sev + _random.uniform(-0.08, 0.08))), 2)
+        item["confidence_score"] = round(min(1.0, max(0.3, base_conf + _random.uniform(-0.05, 0.05))), 2)
+
+        return {"status": "ok", "item": item, "total_pool": len(all_news), "index": idx}
+    except Exception as e:
+        logger.error(f"News stream error: {e}")
+        return {"status": "error", "message": str(e)}
+
+
+@app.get("/alerts-stream")
+async def alerts_stream():
+    """Returns the next alert in randomized rotation. Poll every 20-30s."""
+    global _alert_counter, _alert_order
+    try:
+        all_alerts = load_local_events("news_data.json")
+        if not all_alerts:
+            return {"status": "empty", "item": None}
+
+        # Shuffle order on first call or when we complete a cycle
+        if not _alert_order or _alert_counter >= len(_alert_order):
+            _alert_order = list(range(len(all_alerts)))
+            _random.shuffle(_alert_order)
+            _alert_counter = 0
+
+        idx = _alert_order[_alert_counter]
+        _alert_counter += 1
+        item = dict(all_alerts[idx])
+
+        item["timeAgo"] = _random.choice(["Just now", "1 min ago", "2 min ago", "3 min ago"])
+        item["stream_index"] = _alert_counter
+        item["fetched_at"] = _dt.now().isoformat()
+
+
+        return {"status": "ok", "item": item, "total_pool": len(all_alerts), "index": idx}
+    except Exception as e:
+        logger.error(f"Alerts stream error: {e}")
         return {"status": "error", "message": str(e)}
 
 
@@ -778,15 +756,9 @@ async def health_check():
         "service": "CrisisClarity Master System Engine",
         "version": "2.0.0",
         "firebase": is_firestore_available(),
+        "sarvam": "configured" if os.getenv("SARVAM_API_KEY") else "missing",
         "agents": ["DataCollectionAgent", "VerificationAgent", "ScoringAgent", "ClassificationAgent", "CrisisScoringAgent"],
         "scheduler": scheduler.get_status(),
-        "features": [
-            "5-minute batch rotation",
-            "AI agent pipeline",
-            "Context-aware chatbot",
-            "Dynamic Telegram alerts",
-            "News intelligence engine",
-        ],
     }
 
 
@@ -794,4 +766,6 @@ async def health_check():
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=False)
+    import os
+    port = int(os.getenv("PORT", 8000))
+    uvicorn.run("main:app", host="0.0.0.0", port=port, reload=False)

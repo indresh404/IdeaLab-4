@@ -37,7 +37,7 @@ class AlertRepository {
   Future<List<AlertModel>> _fetchAlertsFromApi() async {
     try {
       final url = Uri.parse('${AppConstants.baseUrl}/active-alerts');
-      final response = await http.get(url).timeout(const Duration(seconds: 5));
+      final response = await http.get(url).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
         final List<dynamic> alertsData = data['alerts'];
@@ -106,6 +106,17 @@ class AlertRepository {
     });
 
     await batch.commit();
+  }
+
+  Future<void> likeAlert(String alertId) async {
+    try {
+      await _firestore.collection('alerts').doc(alertId).update({
+        'likes': FieldValue.increment(1),
+        'feedbackCount': FieldValue.increment(1),
+      });
+    } catch (e) {
+      print('Error liking alert: $e');
+    }
   }
 
   Future<bool> hasUserResponded(String alertId, String userId) async {
@@ -185,6 +196,55 @@ class AlertRepository {
     } catch (e) {
       print('Error in chatAI: $e');
       return '❌ Connection error. Please ensure the backend is running.';
+    }
+  }
+
+  /// Fetch next single news item from the streaming endpoint
+  Future<Map<String, dynamic>?> fetchNextNewsItem() async {
+    try {
+      final url = Uri.parse('${AppConstants.baseUrl}/news-stream');
+      final response = await http.get(url).timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'ok' && data['item'] != null) {
+          final item = data['item'] as Map<String, dynamic>;
+          return {
+            'link': '',
+            'source': (item['sources'] as List?)?.map((s) => s['source_name'] ?? '').join(', ') ?? 'Live Feed',
+            'location': '${item['location']?['city'] ?? 'Mumbai'}, ${item['location']?['state'] ?? 'Maharashtra'}',
+            'published': item['timeAgo'] ?? 'Just now',
+            'severity': (item['severity'] ?? 'low').toString().toLowerCase(),
+            'title': item['title'] ?? 'Update',
+            'description': item['summary'] ?? item['full_description'] ?? '',
+            'disaster_type': item['disaster_type'] ?? 'other',
+            'confidence_score': ((item['confidence_score'] ?? 0.7) * 100).toInt(),
+            'trust_status': (item['trust_label'] ?? 'partial').toString().toLowerCase().contains('verified') ? 'verified' : 'partial',
+            'stream_index': item['stream_index'] ?? 0,
+          };
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching next news: $e');
+      return null;
+    }
+  }
+
+  /// Fetch next single alert from the streaming endpoint
+  Future<Map<String, dynamic>?> fetchNextAlert() async {
+    try {
+      final url = Uri.parse('${AppConstants.baseUrl}/alerts-stream');
+      final response = await http.get(url).timeout(const Duration(seconds: 15));
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        if (data['status'] == 'ok' && data['item'] != null) {
+          return data['item'] as Map<String, dynamic>;
+        }
+      }
+      return null;
+    } catch (e) {
+      print('Error fetching next alert: $e');
+      return null;
     }
   }
 }
