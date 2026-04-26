@@ -91,7 +91,14 @@ class TelegramSendRequest(BaseModel):
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    logger.info("🚀 CrisisClarity Master System Engine v2.0 starting...")
+    # Only run initialization logic ONCE per worker
+    if getattr(app.state, "initialized", False):
+        yield
+        return
+
+    app.state.initialized = True
+    pid = os.getpid()
+    logger.info(f"🚀 CrisisClarity Master System Engine v2.0 starting... [PID: {pid}]")
     logger.info(f"   Firebase: {'✅ Connected' if is_firestore_available() else '⚠️ Not configured (using local JSON)'}")
 
     # Start Telegram Bot in background (DISABLED FOR DEPLOYMENT STABILITY)
@@ -156,13 +163,31 @@ async def root():
     return {"status": "online", "message": "CrisisClarity Master System Engine v2.0"}
 
 
-# Pipeline singleton
-pipeline = AgentPipeline()
-rss_fetcher = RSSFeedFetcher()
-news_intelligence = NewsIngestionAgent(
-    groq_api_key=os.getenv("GROQ_API_KEY"),
-    news_api_key=os.getenv("NEWS_API_KEY")
-)
+# ─── SINGLETONS (Lazy Loaded) ────────────────────────────────────────────────
+_pipeline = None
+_rss_fetcher = None
+_news_intelligence = None
+
+def get_pipeline():
+    global _pipeline
+    if _pipeline is None:
+        _pipeline = AgentPipeline()
+    return _pipeline
+
+def get_rss_fetcher():
+    global _rss_fetcher
+    if _rss_fetcher is None:
+        _rss_fetcher = RSSFeedFetcher()
+    return _rss_fetcher
+
+def get_news_intelligence():
+    global _news_intelligence
+    if _news_intelligence is None:
+        _news_intelligence = NewsIngestionAgent(
+            groq_api_key=os.getenv("GROQ_API_KEY"),
+            news_api_key=os.getenv("NEWS_API_KEY")
+        )
+    return _news_intelligence
 
 
 # ─── NEW v2 ENDPOINTS ────────────────────────────────────────────────────────
@@ -513,7 +538,7 @@ async def verify_alert(request: VerifyAlertRequest):
     logger.info(f"📨 POST /verify-alert: alertId={request.alertId}, scenario={request.scenario}")
 
     try:
-        result = await pipeline.run(request.alertId, request.scenario)
+        result = await get_pipeline().run(request.alertId, request.scenario)
         result_dict = result.model_dump()
 
         return {
@@ -560,7 +585,7 @@ async def re_verify_alert(alert_id: str):
         raise HTTPException(status_code=404, detail=f"Alert {alert_id} not found")
 
     try:
-        result = await pipeline.run(alert_id, scenario=None)
+        result = await get_pipeline().run(alert_id, scenario=None)
         result_dict = result.model_dump()
 
         return {
@@ -589,8 +614,8 @@ async def re_verify_alert(alert_id: str):
 async def test_rss():
     """Test RSS feed fetcher."""
     try:
-        articles = await rss_fetcher.fetch_all_feeds()
-        deduped = rss_fetcher.deduplicate(articles)
+        articles = await get_rss_fetcher().fetch_all_feeds()
+        deduped = get_rss_fetcher().deduplicate(articles)
 
         for art in deduped:
             art["confidence_score"] = 85 if art["source_type"] == "official" else 72

@@ -50,7 +50,7 @@ class DataCollectionAgent:
             groq_api_key=os.getenv("GROQ_API_KEY"),
             news_api_key=os.getenv("NEWS_API_KEY")
         )
-        log_agent_step(logger, self.agent_name, "initialized", "Ready to collect multi-source data")
+        log_agent_step(logger, self.agent_name, "initialized", f"Ready to collect multi-source data [PID: {os.getpid()}]")
 
     async def collect(
         self,
