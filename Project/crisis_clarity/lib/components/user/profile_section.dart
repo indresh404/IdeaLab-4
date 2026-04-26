@@ -157,8 +157,10 @@ class _ProfileSectionState extends ConsumerState<ProfileSection> {
     );
   }
 
-  Widget _buildHeroHeader(BuildContext context, String name, String initial, String location) {
-    return Container(
+ Widget _buildHeroHeader(BuildContext context, String name, String initial, String location) {
+  return ConstrainedBox(
+    constraints: BoxConstraints(minHeight: 200), // Force minimum height
+    child: Container(
       decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
@@ -172,8 +174,9 @@ class _ProfileSectionState extends ConsumerState<ProfileSection> {
       ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(20, 12, 20, 24),
+          padding: const EdgeInsets.fromLTRB(20, 12, 20, 12),
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -183,26 +186,27 @@ class _ProfileSectionState extends ConsumerState<ProfileSection> {
                   _headerIconBtn(icon: Icons.edit_outlined, onTap: () {}),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 12),
               Container(
-                width: 80, height: 80,
+                width: 60, height: 60,
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
                   color: Colors.white.withOpacity(0.2),
                   border: Border.all(color: Colors.white, width: 2.5),
                 ),
-                child: Center(child: Text(initial, style: const TextStyle(fontSize: 28, fontWeight: FontWeight.bold, color: Colors.white))),
+                child: Center(child: Text(initial, style: const TextStyle(fontSize: 22, fontWeight: FontWeight.bold, color: Colors.white))),
               ),
-              const SizedBox(height: 10),
-              Text(name, style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: Colors.white)),
-              const SizedBox(height: 3),
-              Text(location, style: TextStyle(fontSize: 12, color: Colors.white.withOpacity(0.8))),
+              const SizedBox(height: 6),
+              Text(name, style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: Colors.white)),
+              const SizedBox(height: 2),
+              Text(location, style: TextStyle(fontSize: 11, color: Colors.white.withOpacity(0.8))),
             ],
           ),
         ),
       ),
-    );
-  }
+    ),
+  );
+}
 
   Widget _logoutHeaderBtn(BuildContext context) {
     return GestureDetector(

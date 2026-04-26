@@ -3,8 +3,12 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../data/alert_repository.dart';
 import '../domain/alert_model.dart';
 import '../../auth/providers/auth_provider.dart';
+import '../../../core/providers/network_provider.dart';
 
-final alertRepositoryProvider = Provider((ref) => AlertRepository());
+final alertRepositoryProvider = Provider((ref) {
+  final baseUrl = ref.watch(baseUrlProvider);
+  return AlertRepository(baseUrl: baseUrl);
+});
 
 final activeAlertsProvider = StreamProvider<List<AlertModel>>((ref) {
   final user = ref.watch(userProfileProvider).value;

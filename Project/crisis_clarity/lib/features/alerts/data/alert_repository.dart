@@ -6,6 +6,9 @@ import '../domain/alert_model.dart';
 
 class AlertRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final String baseUrl;
+
+  AlertRepository({required this.baseUrl});
 
   Stream<List<AlertModel>> getActiveAlerts(String ward) {
     // Try Firestore stream first
@@ -36,7 +39,7 @@ class AlertRepository {
 
   Future<List<AlertModel>> _fetchAlertsFromApi() async {
     try {
-      final url = Uri.parse('${AppConstants.baseUrl}/active-alerts');
+      final url = Uri.parse('${baseUrl}/active-alerts');
       final response = await http.get(url).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -126,7 +129,7 @@ class AlertRepository {
 
   Future<void> reverifyAlert(String alertId) async {
     try {
-      final url = Uri.parse('${AppConstants.baseUrl}${AppConstants.reVerifyAlert}/$alertId');
+      final url = Uri.parse('${baseUrl}${AppConstants.reVerifyAlert}/$alertId');
       
       final response = await http.post(
         url,
@@ -147,7 +150,7 @@ class AlertRepository {
 
   Future<List<Map<String, dynamic>>> fetchLiveNews() async {
     try {
-      final url = Uri.parse('${AppConstants.baseUrl}/crisis-intelligence');
+      final url = Uri.parse('${baseUrl}/crisis-intelligence');
       final response = await http.get(url).timeout(const Duration(seconds: 20));
 
       if (response.statusCode == 200) {
@@ -178,7 +181,7 @@ class AlertRepository {
 
   Future<String> chatAI(String message, {String? context}) async {
     try {
-      final url = Uri.parse('${AppConstants.baseUrl}/chat');
+      final url = Uri.parse('${baseUrl}/chat');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -201,7 +204,7 @@ class AlertRepository {
 
   Future<String> translateText(String text, {String targetLang = 'hi-IN'}) async {
     try {
-      final url = Uri.parse('${AppConstants.baseUrl}/translate');
+      final url = Uri.parse('${baseUrl}/translate');
       final response = await http.post(
         url,
         headers: {'Content-Type': 'application/json'},
@@ -225,7 +228,7 @@ class AlertRepository {
   /// Fetch next single news item from the streaming endpoint
   Future<Map<String, dynamic>?> fetchNextNewsItem() async {
     try {
-      final url = Uri.parse('${AppConstants.baseUrl}/news-stream');
+      final url = Uri.parse('${baseUrl}/news-stream');
       final response = await http.get(url).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);
@@ -256,7 +259,7 @@ class AlertRepository {
   /// Fetch next single alert from the streaming endpoint
   Future<Map<String, dynamic>?> fetchNextAlert() async {
     try {
-      final url = Uri.parse('${AppConstants.baseUrl}/alerts-stream');
+      final url = Uri.parse('${baseUrl}/alerts-stream');
       final response = await http.get(url).timeout(const Duration(seconds: 15));
       if (response.statusCode == 200) {
         final data = jsonDecode(response.body);

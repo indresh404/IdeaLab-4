@@ -9,6 +9,7 @@ import 'package:crisis_clarity/features/alerts/providers/alert_provider.dart';
 import 'package:crisis_clarity/core/constants.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
+import 'package:crisis_clarity/core/providers/network_provider.dart';
 import 'package:speech_to_text/speech_to_text.dart' as stt;
 import 'package:flutter_tts/flutter_tts.dart';
 import 'package:permission_handler/permission_handler.dart';
@@ -202,8 +203,9 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen>
           ? "The user is viewing an alert about ${widget.post!.title} in ${widget.post!.location}. Content: ${widget.post!.content}"
           : null;
 
+      final baseUrl = ref.read(baseUrlProvider);
       final response = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/chat'),
+        Uri.parse('$baseUrl/chat'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'message': 'Generate a concise situational summary and safety advice for this event.',
@@ -340,8 +342,9 @@ class _AIChatScreenState extends ConsumerState<AIChatScreen>
           ? "The user is viewing an alert about ${widget.post!.title} in ${widget.post!.location}. Content: ${widget.post!.content}"
           : null;
 
+      final baseUrl = ref.read(baseUrlProvider);
       final response = await http.post(
-        Uri.parse('${AppConstants.baseUrl}/chat'),
+        Uri.parse('$baseUrl/chat'),
         headers: {'Content-Type': 'application/json'},
         body: jsonEncode({
           'message': userMessage,

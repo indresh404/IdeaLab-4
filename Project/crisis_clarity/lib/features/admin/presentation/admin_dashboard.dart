@@ -7,7 +7,12 @@ import '../data/admin_repository.dart';
 import '../../../theme/app_theme.dart';
 import 'package:go_router/go_router.dart';
 
-final adminRepositoryProvider = Provider((ref) => AdminRepository());
+import '../../../core/providers/network_provider.dart';
+
+final adminRepositoryProvider = Provider((ref) {
+  final baseUrl = ref.watch(baseUrlProvider);
+  return AdminRepository(baseUrl: baseUrl);
+});
 
 final allAlertsProvider = StreamProvider<List<AlertModel>>((ref) {
   return ref.watch(adminRepositoryProvider).getAllAlerts();

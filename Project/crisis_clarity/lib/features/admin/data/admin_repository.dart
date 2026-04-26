@@ -6,6 +6,9 @@ import '../../alerts/domain/alert_model.dart';
 
 class AdminRepository {
   final FirebaseFirestore _firestore = FirebaseFirestore.instance;
+  final String baseUrl;
+
+  AdminRepository({required this.baseUrl});
 
   Stream<List<AlertModel>> getAllAlerts() {
     return _firestore.collection('alerts')
@@ -32,7 +35,7 @@ class AdminRepository {
 
     // Trigger AI Verification Pipeline via Backend API
     try {
-      final url = Uri.parse('${AppConstants.baseUrl}${AppConstants.verifyAlert}');
+      final url = Uri.parse('${baseUrl}${AppConstants.verifyAlert}');
       await http.post(
         url,
         headers: {'Content-Type': 'application/json'},

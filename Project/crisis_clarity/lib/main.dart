@@ -17,6 +17,8 @@ import 'features/admin/presentation/create_alert_screen.dart';
 import 'features/auth/providers/auth_provider.dart';
 import 'core/services/notification_service.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'screens/ip_entry_screen.dart';
+import 'core/providers/network_provider.dart';
 
 final notificationServiceProvider = Provider((ref) => NotificationService());
 
@@ -50,6 +52,7 @@ class RouterRefreshListenable extends ChangeNotifier {
   RouterRefreshListenable(Ref ref) {
     ref.listen(authStateProvider, (_, __) => notifyListeners());
     ref.listen(userProfileProvider, (_, __) => notifyListeners());
+    ref.listen(isNetworkConfiguredProvider, (_, __) => notifyListeners());
   }
 }
 
@@ -60,6 +63,10 @@ final _routerProvider = Provider<GoRouter>((ref) {
     initialLocation: '/',
     refreshListenable: refreshListenable,
     routes: [
+      GoRoute(
+        path: '/setup',
+        builder: (context, state) => const IpEntryScreen(),
+      ),
       GoRoute(
         path: '/',
         builder: (context, state) {
@@ -120,10 +127,21 @@ final _routerProvider = Provider<GoRouter>((ref) {
       final user = authState.value;
       final profile = profileState.value;
       final currentPath = state.matchedLocation;
+      final isConfigured = ref.read(isNetworkConfiguredProvider);
+
+      // 0. Network Configuration Check
+      if (!isConfigured) {
+        return currentPath == '/setup' ? null : '/setup';
+      }
       
-      // 1. Loading state
+      // 1. Initial Loading state
       if (authState.isLoading || (user != null && profileState.isLoading)) {
         return null; 
+      }
+
+      // If we just configured the network, move away from /setup
+      if (currentPath == '/setup') {
+        return '/';
       }
       
       debugPrint('Router Redirect - Path: $currentPath, User: ${user?.uid}, Profile: ${profile?.name}');
