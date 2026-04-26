@@ -266,18 +266,9 @@ class CrisisScoringAgent:
         self, event: Dict[str, Any], severity: float, confidence: float
     ) -> Dict[str, str]:
         """
-        Generate ai_analysis using Groq LLM.
-        Falls back to rule-based if LLM is not available.
+        Generate ai_analysis without LLM for background processing efficiency.
         """
-        # Try LLM first
-        groq = self._get_groq()
-        if groq:
-            try:
-                return await self._llm_analysis(groq, event, severity, confidence)
-            except Exception as e:
-                logger.warning(f"LLM analysis failed, using rule-based: {e}")
-
-        # Rule-based fallback
+        # Rule-based analysis is fast, free, and robust for background tasks.
         return self._rule_based_analysis(event, severity)
 
     async def _llm_analysis(

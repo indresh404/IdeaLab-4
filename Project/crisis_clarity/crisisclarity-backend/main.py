@@ -413,6 +413,17 @@ OUTPUT FORMAT (STRICT JSON):
             "error": str(e)
         }
 
+@app.post("/translate")
+async def translate_text(request: Dict[str, Any]):
+    """Fast translation using Sarvam AI."""
+    text = request.get("text")
+    target = request.get("target_lang", "hi-IN")
+    if not text:
+        return {"error": "No text provided"}
+    
+    translated = sarvam.translate(text, source_lang="en-IN", target_lang=target)
+    return {"translated_text": translated}
+
 @app.post("/text-to-speech")
 async def text_to_speech(request: TTSRequest):
     """

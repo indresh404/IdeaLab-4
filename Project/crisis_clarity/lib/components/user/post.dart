@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:crisis_clarity/theme/app_theme.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:crisis_clarity/features/alerts/providers/alert_provider.dart';
 
 enum SeverityLevel {
   red('RED', 'Critical Emergency', AppTheme.primaryRed),
@@ -52,7 +54,7 @@ class Post {
   });
 }
 
-class PostWidget extends StatefulWidget {
+class PostWidget extends ConsumerStatefulWidget {
   final Post post;
   final VoidCallback? onFeedback;
   final VoidCallback? onNotificationTap;
@@ -69,10 +71,39 @@ class PostWidget extends StatefulWidget {
   });
 
   @override
-  State<PostWidget> createState() => _PostWidgetState();
+  ConsumerState<PostWidget> createState() => _PostWidgetState();
 }
 
-class _PostWidgetState extends State<PostWidget> with TickerProviderStateMixin {
+class _PostWidgetState extends ConsumerState<PostWidget> with TickerProviderStateMixin {
+  String? _translatedTitle;
+  String? _translatedContent;
+  bool _isTranslating = false;
+
+  Future<void> _toggleTranslation() async {
+    if (_translatedContent != null) {
+      setState(() {
+        _translatedTitle = null;
+        _translatedContent = null;
+      });
+      return;
+    }
+
+    setState(() => _isTranslating = true);
+    try {
+      final repo = ref.read(alertRepositoryProvider);
+      final titleHi = await repo.translateText(widget.post.title, targetLang: 'hi-IN');
+      final contentHi = await repo.translateText(widget.post.content, targetLang: 'hi-IN');
+      
+      setState(() {
+        _translatedTitle = titleHi;
+        _translatedContent = contentHi;
+        _isTranslating = false;
+      });
+    } catch (e) {
+      setState(() => _isTranslating = false);
+    }
+  }
+
   bool _isExpanded = false;
   bool _hasGivenFeedback = false;
   int _feedbackCount = 0;
@@ -449,14 +480,33 @@ class _PostWidgetState extends State<PostWidget> with TickerProviderStateMixin {
                   const SizedBox(height: 16),
 
                   // Post Title
-                  Text(
-                    widget.post.title,
-                    style: const TextStyle(
-                      fontSize: 20,
-                      fontWeight: FontWeight.bold,
-                      height: 1.3,
-                      letterSpacing: -0.3,
-                    ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: Text(
+                          _translatedTitle ?? widget.post.title,
+                          style: const TextStyle(
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            height: 1.3,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        onPressed: _isTranslating ? null : _toggleTranslation,
+                        icon: _isTranslating 
+                          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                          : Icon(
+                              Icons.translate, 
+                              size: 18, 
+                              color: _translatedContent != null ? AppTheme.primaryRed : Colors.grey
+                            ),
+                        padding: EdgeInsets.zero,
+                        constraints: const BoxConstraints(),
+                      ),
+                    ],
                   ),
 
                   const SizedBox(height: 12),
@@ -485,7 +535,7 @@ class _PostWidgetState extends State<PostWidget> with TickerProviderStateMixin {
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
                           Text(
-                            widget.post.content,
+                            _translatedContent ?? widget.post.content,
                             style: TextStyle(
                               fontSize: 14,
                               color: Colors.grey[800],

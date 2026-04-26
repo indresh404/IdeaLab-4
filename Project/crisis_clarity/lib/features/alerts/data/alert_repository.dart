@@ -199,6 +199,29 @@ class AlertRepository {
     }
   }
 
+  Future<String> translateText(String text, {String targetLang = 'hi-IN'}) async {
+    try {
+      final url = Uri.parse('${AppConstants.baseUrl}/translate');
+      final response = await http.post(
+        url,
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'text': text,
+          'target_lang': targetLang,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final data = jsonDecode(response.body);
+        return data['translated_text'];
+      }
+      throw Exception('Failed to translate');
+    } catch (e) {
+      print('Error in translateText: $e');
+      return text; // Return original on failure
+    }
+  }
+
   /// Fetch next single news item from the streaming endpoint
   Future<Map<String, dynamic>?> fetchNextNewsItem() async {
     try {

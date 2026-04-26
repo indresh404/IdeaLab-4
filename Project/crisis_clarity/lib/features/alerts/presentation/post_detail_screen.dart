@@ -7,16 +7,56 @@ import '../../auth/providers/auth_provider.dart';
 import '../../../components/user/post.dart';
 import '../../../theme/app_theme.dart';
 
-class PostDetailScreen extends ConsumerWidget {
+class PostDetailScreen extends ConsumerStatefulWidget {
   final Post post;
-
   const PostDetailScreen({super.key, required this.post});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final color = post.severity.color;
-    final trustColor = post.trustStatus == 'verified' ? Colors.green : 
-                       post.trustStatus == 'fake' ? Colors.red : Colors.orange;
+  ConsumerState<PostDetailScreen> createState() => _PostDetailScreenState();
+}
+
+class _PostDetailScreenState extends ConsumerState<PostDetailScreen> {
+  String? _translatedTitle;
+  String? _translatedContent;
+  bool _isTranslating = false;
+  bool _hasFeedback = false;
+
+  Future<void> _translateToHindi() async {
+    setState(() => _isTranslating = true);
+    try {
+      final repo = ref.read(alertRepositoryProvider);
+      final titleHi = await repo.translateText(widget.post.title, targetLang: 'hi-IN');
+      final contentHi = await repo.translateText(widget.post.content, targetLang: 'hi-IN');
+      
+      if (mounted) {
+        setState(() {
+          _translatedTitle = titleHi;
+          _translatedContent = contentHi;
+          _isTranslating = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) setState(() => _isTranslating = false);
+    }
+  }
+
+  void _submitFeedback(bool understood) async {
+    final auth = ref.read(authStateProvider).value;
+    if (auth == null) return;
+
+    setState(() => _hasFeedback = true);
+    try {
+      await ref.read(alertRepositoryProvider).submitFeedback(widget.post.id, auth.uid, understood ? 'understood' : 'not_understood');
+    } catch (e) {
+      print('Feedback failed: $e');
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final color = widget.post.severity.color;
+    final trustColor = widget.post.trustStatus == 'verified' ? Colors.green : 
+                       widget.post.trustStatus == 'fake' ? Colors.red : Colors.orange;
 
     return Scaffold(
       backgroundColor: const Color(0xFFF8F9FB),
@@ -34,7 +74,7 @@ class PostDetailScreen extends ConsumerWidget {
                   _buildTrustCard(trustColor),
                   const SizedBox(height: 32),
                   Text(
-                    post.title,
+                    _translatedTitle ?? widget.post.title,
                     style: GoogleFonts.dmSerifDisplay(
                       fontSize: 28,
                       fontWeight: FontWeight.bold,
@@ -42,9 +82,19 @@ class PostDetailScreen extends ConsumerWidget {
                       color: const Color(0xFF1A1C1E),
                     ),
                   ),
+                  const SizedBox(height: 12),
+                  if (_translatedContent == null)
+                    TextButton.icon(
+                      onPressed: _isTranslating ? null : _translateToHindi,
+                      icon: _isTranslating 
+                        ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+                        : const Icon(Icons.translate, size: 18),
+                      label: Text(_isTranslating ? 'Translating...' : 'Translate to Hindi'),
+                      style: TextButton.styleFrom(foregroundColor: AppTheme.primaryRed),
+                    ),
                   const SizedBox(height: 20),
                   Text(
-                    post.content,
+                    _translatedContent ?? widget.post.content,
                     style: const TextStyle(
                       fontSize: 16,
                       height: 1.7,
@@ -56,7 +106,7 @@ class PostDetailScreen extends ConsumerWidget {
                   const SizedBox(height: 40),
                   _buildImpactGraph(),
                   const SizedBox(height: 40),
-                  if (post.link != null) _buildSourceLink(context),
+                  if (widget.post.link != null) _buildSourceLink(context),
                   const SizedBox(height: 100),
                 ],
               ),
@@ -84,7 +134,7 @@ class PostDetailScreen extends ConsumerWidget {
           ),
           child: Center(
             child: Icon(
-              _getIcon(post.disasterType),
+              _getIcon(widget.post.disasterType),
               size: 80,
               color: Colors.white.withOpacity(0.9),
             ),
@@ -103,10 +153,10 @@ class PostDetailScreen extends ConsumerWidget {
       children: [
         CircleAvatar(
           radius: 24,
-          backgroundColor: post.severity.color.withOpacity(0.1),
+          backgroundColor: widget.post.severity.color.withOpacity(0.1),
           child: Text(
-            post.username[0],
-            style: TextStyle(color: post.severity.color, fontWeight: FontWeight.bold),
+            widget.post.username[0],
+            style: TextStyle(color: widget.post.severity.color, fontWeight: FontWeight.bold),
           ),
         ),
         const SizedBox(width: 16),
@@ -115,11 +165,11 @@ class PostDetailScreen extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
-                post.username,
+                widget.post.username,
                 style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16),
               ),
               Text(
-                '${post.location} • ${post.timeAgo}',
+                '${widget.post.location} • ${widget.post.timeAgo}',
                 style: const TextStyle(color: Colors.grey, fontSize: 13),
               ),
             ],
@@ -128,13 +178,13 @@ class PostDetailScreen extends ConsumerWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
           decoration: BoxDecoration(
-            color: post.severity.color.withOpacity(0.1),
+            color: widget.post.severity.color.withOpacity(0.1),
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
-            post.severity.label,
+            widget.post.severity.label,
             style: TextStyle(
-              color: post.severity.color,
+              color: widget.post.severity.color,
               fontWeight: FontWeight.bold,
               fontSize: 12,
             ),
@@ -186,14 +236,14 @@ class PostDetailScreen extends ConsumerWidget {
                     width: 60,
                     height: 60,
                     child: CircularProgressIndicator(
-                      value: post.trustScore / 100,
+                      value: widget.post.trustScore / 100,
                       strokeWidth: 8,
                       backgroundColor: color.withOpacity(0.1),
                       valueColor: AlwaysStoppedAnimation<Color>(color),
                     ),
                   ),
                   Text(
-                    '${post.trustScore}%',
+                    '${widget.post.trustScore}%',
                     style: TextStyle(
                       fontWeight: FontWeight.bold,
                       fontSize: 14,
@@ -208,7 +258,7 @@ class PostDetailScreen extends ConsumerWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'Trust Status: ${post.trustStatus.toUpperCase()}',
+                      'Trust Status: ${widget.post.trustStatus.toUpperCase()}',
                       style: TextStyle(
                         fontWeight: FontWeight.bold,
                         fontSize: 16,
@@ -264,7 +314,7 @@ class PostDetailScreen extends ConsumerWidget {
                   onTap: () async {
                     final auth = ref.read(authStateProvider).value;
                     final userId = auth?.uid ?? 'guest';
-                    await ref.read(alertRepositoryProvider).submitFeedback(post.id, userId, 'understood');
+                    await ref.read(alertRepositoryProvider).submitFeedback(widget.post.id, userId, 'understood');
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Feedback recorded! Thank you.')),
                     );
@@ -280,7 +330,7 @@ class PostDetailScreen extends ConsumerWidget {
                   onTap: () async {
                     final auth = ref.read(authStateProvider).value;
                     final userId = auth?.uid ?? 'guest';
-                    await ref.read(alertRepositoryProvider).submitFeedback(post.id, userId, 'notUnderstood');
+                    await ref.read(alertRepositoryProvider).submitFeedback(widget.post.id, userId, 'notUnderstood');
                     ScaffoldMessenger.of(context).showSnackBar(
                       const SnackBar(content: Text('Feedback recorded. We will improve.')),
                     );
@@ -295,7 +345,7 @@ class PostDetailScreen extends ConsumerWidget {
   }
 
   Widget _buildImpactGraph() {
-    final total = post.feedbackCount > 0 ? post.feedbackCount : 124;
+    final total = widget.post.feedbackCount > 0 ? widget.post.feedbackCount : 124;
     final understood = (total * 0.85).round();
     final unclear = total - understood;
 
@@ -334,7 +384,7 @@ class PostDetailScreen extends ConsumerWidget {
     return Center(
       child: ElevatedButton.icon(
         onPressed: () async {
-          final url = Uri.parse(post.link!);
+          final url = Uri.parse(widget.post.link!);
           if (await canLaunchUrl(url)) {
             await launchUrl(url);
           }

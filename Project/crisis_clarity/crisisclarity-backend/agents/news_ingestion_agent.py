@@ -190,59 +190,35 @@ class NewsIngestionAgent:
         return [r for r in results if r]
 
     async def _analyze_and_filter(self, articles: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """Use Groq to filter and classify articles in parallel."""
-        async def analyze_one(art):
-            # Fast local filter to save API costs and time
-            text_pool = (art['headline'] + " " + art['full_content']).lower()
-            if not any(loc.lower() in text_pool for loc in ["india", "mumbai", "maharashtra", "pune", "thane"]):
-                return None
-
-            prompt = f"""
-            Task: Classify disaster news.
-            Title: {art['headline']}
-            Content: {art['full_content'][:400]}
+        """Perform simple keyword-based filtering to save API calls/costs."""
+        filtered_results = []
+        for art in articles[:10]: # Process top 10
+            text_pool = (art['headline'] + " " + art.get('full_content', '')).lower()
             
-            Return JSON:
-            {{
-                "is_india_disaster": bool,
-                "location": {{ "city": "Mumbai" }},
-                "disaster_type": "flood|fire|landslide|other",
-                "severity": "LOW|MEDIUM|HIGH",
-                "trust_score": float,
-                "summary": "Short summary",
-                "keywords": ["word"]
-            }}
-            """
+            # 1. Geo Filter (Basic)
+            locations = ["india", "mumbai", "maharashtra", "pune", "thane", "palghar", "raigad", "nashik", "nagpur"]
+            is_local = any(loc in text_pool for loc in locations)
             
-            try:
-                # Use Groq for production-grade classification
-                client = Groq(api_key=os.getenv("GROQ_API_KEY", ""))
-                
-                def _call():
-                    completion = client.chat.completions.create(
-                        model="llama-3.1-8b-instant",
-                        messages=[{"role": "user", "content": prompt}],
-                        response_format={"type": "json_object"},
-                        temperature=0.1,
-                    )
-                    return json.loads(completion.choices[0].message.content)
-
-                results_json = await asyncio.to_thread(_call)
-                return results_json.get("results", [])
-                
-            except Exception as e:
-                logger.error(f"❌ Groq Classification Error: {e}")
-                return []
-
-                if "rate_limit_exceeded" in str(e).lower():
-                    logger.warning(f"⚠️ Groq Rate Limit hit, skipping article: {art['headline']}")
-                else:
-                    logger.error(f"LLM analysis failed: {e}")
-            return None
-
-        # Limit analysis to top 5 articles to save tokens and prevent 429
-        results = await asyncio.gather(*[analyze_one(art) for art in articles[:5]])
-        return [r for r in results if r]
+            # 2. Disaster Filter (Basic)
+            is_disaster = any(kw in text_pool for kw in self.disaster_keywords)
+            
+            if is_local and is_disaster:
+                # Construct a simple results dict without LLM
+                filtered_results.append({
+                    "headline": art['headline'],
+                    "summary": art['description'][:300] if art.get('description') else art['headline'],
+                    "full_content": art.get('full_content', art.get('description', "")),
+                    "location": {"city": "Mumbai" if "mumbai" in text_pool else "Maharashtra"},
+                    "disaster_type": next((kw for kw in self.disaster_keywords if kw in text_pool), "other"),
+                    "severity": "MEDIUM" if any(kw in text_pool for kw in ["death", "killed", "critical", "major"]) else "LOW",
+                    "trust_score": 0.7,
+                    "keywords": [kw for kw in self.disaster_keywords if kw in text_pool],
+                    "published": art['published'],
+                    "source_name": art['source_name'],
+                    "url": art['url']
+                })
+        
+        return filtered_results
 
     def _cluster_into_events(self, articles: List[Dict[str, Any]]) -> List[CrisisEvent]:
         """Simplified deduplication without heavy ML libraries."""
