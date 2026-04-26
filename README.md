@@ -151,17 +151,20 @@ CrisisClarity uses a **BDI-based Cooperative Multi-Agent Pipeline** with full ex
 
 ---
 
-## 🗣️ Multilingual AI Stack
+## 🗣️ MULTILINGUAL AI STACK
 
-### Primary LLM: Groq Cloud (`llama-3.3-70b-versatile`)
+### Primary LLM: Groq Cloud (llama-3.3-70b-versatile)
+
 - Ultra-fast inference (200+ tokens/sec)
 - Translation: English ↔ Hindi ↔ Marathi
 - Summarization & simplification
 - Unstructured news parsing
 
-### Text-to-Speech (Planned):
-- Sarvam AI integration for native voice output
-- Dynamic voice engine switching (`hi-IN`, `mr-IN`)
+### Translation & TTS: Sarvam AI
+
+- Context-preserving native language translation
+- Text-to-Speech for voice output
+- Dynamic voice engine switching (hi-IN, mr-IN)
 
 ---
 
