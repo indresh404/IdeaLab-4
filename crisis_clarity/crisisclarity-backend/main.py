@@ -101,13 +101,13 @@ async def lifespan(app: FastAPI):
     logger.info(f"🚀 CrisisClarity Master System Engine v2.0 starting... [PID: {pid}]")
     logger.info(f"   Firebase: {'✅ Connected' if is_firestore_available() else '⚠️ Not configured (using local JSON)'}")
 
-    # Start Telegram Bot in background (DISABLED FOR DEPLOYMENT STABILITY)
-    # bot_task = None
-    # try:
-    #     await asyncio.sleep(2)
-    #     bot_task = asyncio.create_task(run_bot_async())
-    # except Exception as e:
-    #     logger.warning(f"⚠️ Telegram bot start skipped: {e}")
+    # Start Telegram Bot in background
+    bot_task = None
+    try:
+        await asyncio.sleep(2)
+        bot_task = asyncio.create_task(run_bot_async())
+    except Exception as e:
+        logger.warning(f"⚠️ Telegram bot start skipped: {e}")
 
     # Initialize and start the 5-minute scheduler in background with a delay
     scheduler = get_scheduler()
@@ -127,13 +127,13 @@ async def lifespan(app: FastAPI):
 
     logger.info("🛑 CrisisClarity Backend shutting down")
     scheduler.stop()
-    # if bot_task:
-    #     bot_task.cancel()
-    # try:
-    #     if bot_task:
-    #         await bot_task
-    # except asyncio.CancelledError:
-    #     pass
+    if bot_task:
+        bot_task.cancel()
+    try:
+        if bot_task:
+            await bot_task
+    except asyncio.CancelledError:
+        pass
 
 app = FastAPI(
     title="CrisisClarity Master System Engine",
