@@ -1,4 +1,4 @@
-# 🚨 CrisisClarity: Real-Time Disaster Intelligence 
+# 🚨 CrisisClarity: Real-Time Disaster Intelligence Automation Alert
 
 <p align="center">
   <img src="crisis_clarity/assets/icons/Logo.png" width="25%" />
